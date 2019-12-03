@@ -1,0 +1,49 @@
+{
+	"USE_PROTOCOL": "https",
+	"USE_DOMAIN": "cdn.openwrt.org",
+	"USE_RELEASE": "releases",
+	"USE_VERSION": "18.06.5",
+	"USE_GCC": "gcc-7.3.0_musl",
+	"target0": {
+		"USE_ARCH": "x86_64",
+		"USE_TARGET": "x86",
+		"USE_SUBTARGET": "64"
+	},
+	"target1": {
+		"USE_ARCH": "mips_24kc",
+		"USE_TARGET": "ar71xx",
+		"USE_SUBTARGET": "generic"
+	},
+	"target2": {
+		"USE_ARCH": "mipsel_24kc",
+		"USE_TARGET": "ramips",
+		"USE_SUBTARGET": "mt7621"
+	},
+	"target3": {
+		"USE_ARCH": "arm_cortex-a9",
+		"USE_TARGET": "bcm53xx",
+		"USE_SUBTARGET": "generic",
+		"USE_EABI": "1",
+		"USE_UNIQUE": "1"
+	},
+	"target4": {
+		"USE_ARCH": "arm_cortex-a7_neon-vfpv4",
+		"USE_TARGET": "ipq40xx",
+		"USE_SUBTARGET": "generic",
+		"USE_EABI": "1",
+		"USE_UNIQUE": "1"
+	},
+	"target5": {
+		"USE_ARCH": "arm_cortex-a9_vfpv3",
+		"USE_TARGET": "mvebu",
+		"USE_SUBTARGET": "cortexa9",
+		"USE_EABI": "1"
+	},
+	"target6": {
+		"USE_ARCH": "arm_cortex-a15_neon-vfpv4",
+		"USE_TARGET": "ipq806x",
+		"USE_SUBTARGET": "generic",
+		"USE_EABI": "1",
+		"USE_UNIQUE": "1"
+	}
+}

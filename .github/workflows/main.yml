@@ -1,0 +1,23 @@
+name: Create Draft
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - name: Create Release
+      uses: actions/create-release@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: |
+            Update the patches.
+        draft: false
+        prerelease: true

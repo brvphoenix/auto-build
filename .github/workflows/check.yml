@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    tags-ignore:
+      - v*
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Build the Binary Files
+    runs-on: ubuntu-latest
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      USE_CHOICE: target0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+      - name: Show Info
+        run: |
+          uname -a
+          lsb_release -a
+      - name: Install Dependencies
+        run: |
+          sudo -E apt-get update
+          sudo -E apt-get -y install build-essential flex gawk gcc-multilib git libelf-dev libncurses5-dev \
+                             libssl-dev python subversion zlib1g-dev autoconf automake libtool autopoint jq curl
+          sudo -E apt-get -y autoremove --purge
+          sudo -E apt-get clean
+
+          echo "::set-env name=USE_PROTOCOL::$(jq --raw-output '.USE_PROTOCOL' target.json)"
+          echo "::set-env name=USE_DOMAIN::$(jq --raw-output '.USE_DOMAIN' target.json)"
+          echo "::set-env name=USE_RELEASE::$(jq --raw-output '.USE_RELEASE' target.json)"
+          echo "::set-env name=USE_VERSION::$(jq --raw-output '.USE_VERSION' target.json)"
+
+          echo "::set-env name=USE_ARCH::$(jq --raw-output '.${{env.USE_CHOICE}}.USE_ARCH' target.json)"
+          echo "::set-env name=USE_TARGET::$(jq --raw-output '.${{env.USE_CHOICE}}.USE_TARGET' target.json)"
+          echo "::set-env name=USE_SUBTARGET::$(jq --raw-output '.${{env.USE_CHOICE}}.USE_SUBTARGET' target.json)"
+          [ "$(jq --raw-output '.${{env.USE_CHOICE}}.USE_EABI' target.json)" = "null" ] && \
+          echo "::set-env name=USE_GCC::$(jq --raw-output '.USE_GCC' target.json)" || \
+          echo "::set-env name=USE_GCC::$(jq --raw-output '.USE_GCC' target.json)_eabi"
+          [ "$(jq --raw-output '.${{env.USE_CHOICE}}.USE_UNIQUE' target.json)" = "null" ] && \
+          USE_SDK="$(jq --raw-output '.${{env.USE_CHOICE}}.USE_TARGET' target.json)-$(jq --raw-output '.${{env.USE_CHOICE}}.USE_SUBTARGET' target.json)" || \
+          USE_SDK="$(jq --raw-output '.${{env.USE_CHOICE}}.USE_TARGET' target.json)"
+          echo "::set-env name=USE_SDK::${USE_SDK}"
+      - name: Download the SDK
+        run: |
+          wget --no-check-certificate ${{env.USE_PROTOCOL}}://${{env.USE_DOMAIN}}/${{env.USE_RELEASE}}/${{env.USE_VERSION}}/targets/${{env.USE_TARGET}}/\
+          ${{env.USE_SUBTARGET}}/openwrt-sdk-${{env.USE_VERSION}}-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz
+
+          tar -xJvf *.tar.xz && rm -f *.tar.xz
+          mv openwrt-sdk* build
+      - name: Configure
+        run: |
+          git clone https://${{ secrets.SUPER_TOKEN }}@github.com/brvphoenix/SomePackages.git
+          mv -f ./SomePackages/qbittorrent ./build/package/
+          chmod 755 generate.sh
+          ./generate.sh
+          make package/qbittorrent/download
