@@ -1,0 +1,96 @@
+name: Build_qBT_mipsel_24kc
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Build the Binary Files
+    runs-on: ubuntu-18.04
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      USE_CHOICE: target2
+    steps:
+    - name: Checkout
+      uses: actions/checkout@master
+    - name: Install Dependencies
+      run: |
+        sudo -E apt-get update
+        sudo -E apt-get -y install build-essential flex gawk gcc-multilib git libelf-dev libncurses5-dev \
+                           libssl-dev python subversion zlib1g-dev autoconf automake libtool autopoint jq curl
+        sudo -E apt-get -y autoremove --purge
+        sudo -E apt-get clean
+
+        echo "::set-env name=USE_PROTOCOL::$(jq --raw-output '.USE_PROTOCOL' target.json)"
+        echo "::set-env name=USE_DOMAIN::$(jq --raw-output '.USE_DOMAIN' target.json)"
+        echo "::set-env name=USE_RELEASE::$(jq --raw-output '.USE_RELEASE' target.json)"
+        echo "::set-env name=USE_VERSION::$(jq --raw-output '.USE_VERSION' target.json)"
+
+        echo "::set-env name=USE_ARCH::$(jq --raw-output '.${{env.USE_CHOICE}}.USE_ARCH' target.json)"
+        echo "::set-env name=USE_TARGET::$(jq --raw-output '.${{env.USE_CHOICE}}.USE_TARGET' target.json)"
+        echo "::set-env name=USE_SUBTARGET::$(jq --raw-output '.${{env.USE_CHOICE}}.USE_SUBTARGET' target.json)"
+        [ "$(jq --raw-output '.${{env.USE_CHOICE}}.USE_EABI' target.json)" = "null" ] && \
+          echo "::set-env name=USE_GCC::$(jq --raw-output '.USE_GCC' target.json)" || \
+          echo "::set-env name=USE_GCC::$(jq --raw-output '.USE_GCC' target.json)_eabi"
+        [ "$(jq --raw-output '.${{env.USE_CHOICE}}.USE_UNIQUE' target.json)" = "null" ] && \
+          USE_SDK="$(jq --raw-output '.${{env.USE_CHOICE}}.USE_TARGET' target.json)-$(jq --raw-output '.${{env.USE_CHOICE}}.USE_SUBTARGET' target.json)" || \
+          USE_SDK="$(jq --raw-output '.${{env.USE_CHOICE}}.USE_TARGET' target.json)"
+        echo "::set-env name=USE_SDK::${USE_SDK}"
+    - name: Download the SDK
+      run: |
+        wget --no-check-certificate ${{env.USE_PROTOCOL}}://${{env.USE_DOMAIN}}/${{env.USE_RELEASE}}/${{env.USE_VERSION}}/targets/${{env.USE_TARGET}}/\
+        ${{env.USE_SUBTARGET}}/openwrt-sdk-${{env.USE_VERSION}}-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz
+
+        tar -xJvf *.tar.xz && rm -f *.tar.xz
+        mv openwrt-sdk* build
+    - name: Configure
+      run: |
+        git clone https://${{ secrets.SUPER_TOKEN }}@github.com/brvphoenix/SomePackages.git
+        mv -f ./SomePackages/qbittorrent ./build/package/
+        chmod 755 generate.sh
+        ./generate.sh
+    - name: Build Packages
+      run: |
+        cd build
+        make package/luci-app-qbittorrent/compile V=s -j$(nproc)
+    - name: Pack Files
+      run: |
+        export TARGET_PATH=build/bin/targets/${{env.USE_TARGET}}/${{env.USE_SUBTARGET}}
+        export PACKAGE_PATH=build/bin/packages/${{env.USE_ARCH}}
+        mkdir -p ./${{env.USE_ARCH}}/1 ./${{env.USE_ARCH}}/2
+        cp -f ${PACKAGE_PATH}/base/qt5* ./${{env.USE_ARCH}}/1
+        cp -f ${PACKAGE_PATH}/base/*torrent*.ipk ./${{env.USE_ARCH}}/1
+        cp -f ${PACKAGE_PATH}/base/libopenssl* ./${{env.USE_ARCH}}/2
+        cp -f ${PACKAGE_PATH}/packages/boost-chrono* ./${{env.USE_ARCH}}/2
+        cp -f ${PACKAGE_PATH}/packages/boost-random* ./${{env.USE_ARCH}}/2
+        cp -f ${PACKAGE_PATH}/packages/boost-system* ./${{env.USE_ARCH}}/2
+        cp -f ${PACKAGE_PATH}/packages/libdouble-conversion* ./${{env.USE_ARCH}}/2
+        cp -f ${PACKAGE_PATH}/base/libiconv* ./${{env.USE_ARCH}}/2
+        cp -f ${PACKAGE_PATH}/packages/libpcre2-16* ./${{env.USE_ARCH}}/2
+        cp -f ${PACKAGE_PATH}/base/zlib_* ./${{env.USE_ARCH}}/2
+        cp -f ${TARGET_PATH}/packages/libatomic* ./${{env.USE_ARCH}}/2
+        cp -f ${TARGET_PATH}/packages/libpthread* ./${{env.USE_ARCH}}/2
+        cp -f ${TARGET_PATH}/packages/libstdcpp* ./${{env.USE_ARCH}}/2
+        cp -f ${TARGET_PATH}/packages/librt* ./${{env.USE_ARCH}}/2
+        tar -cJvf ${{env.USE_ARCH}}.tar.xz ${{env.USE_ARCH}}
+    - name: Upload IPKs
+      run: |
+        PATH_TO_FILE=./${{env.USE_ARCH}}.tar.xz
+        FILENAME=${{env.USE_ARCH}}.tar.xz
+        GITHUB_TOKEN=${{ secrets.SUPER_TOKEN }}
+        RELEASE_ID=$(jq --raw-output '.release.id' $GITHUB_EVENT_PATH)
+        UPLOAD_URL="https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=${FILENAME}"
+        CONTENT_TYPE_HEADER="Content-Type: application/zip"
+        CONTENT_LENGTH_HEADER="Content-Length: $(stat -c%s "${PATH_TO_FILE}")"
+        AUTH_HEADER="Authorization: token ${GITHUB_TOKEN}"
+
+        curl \
+        -sSL \
+        -XPOST \
+        -H "${AUTH_HEADER}" \
+        -H "${CONTENT_LENGTH_HEADER}" \
+        -H "${CONTENT_TYPE_HEADER}" \
+        --upload-file "${PATH_TO_FILE}" \
+        "${UPLOAD_URL}"
+
