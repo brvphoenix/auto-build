@@ -57,4 +57,5 @@ jobs:
           mv -f ./SomePackages/qbittorrent ./build/package/
           chmod 755 generate.sh
           ./generate.sh
+          cd build
           make package/qbittorrent/download
