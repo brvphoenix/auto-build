@@ -30,8 +30,7 @@
 		"USE_ARCH": "arm_cortex-a7_neon-vfpv4",
 		"USE_TARGET": "ipq40xx",
 		"USE_SUBTARGET": "generic",
-		"USE_EABI": "1",
-		"USE_UNIQUE": "1"
+		"USE_EABI": "1"
 	},
 	"target5": {
 		"USE_ARCH": "arm_cortex-a9_vfpv3",
@@ -43,7 +42,6 @@
 		"USE_ARCH": "arm_cortex-a15_neon-vfpv4",
 		"USE_TARGET": "ipq806x",
 		"USE_SUBTARGET": "generic",
-		"USE_EABI": "1",
-		"USE_UNIQUE": "1"
+		"USE_EABI": "1"
 	}
 }
