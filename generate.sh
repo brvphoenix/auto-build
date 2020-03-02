@@ -1,4 +1,7 @@
 #! /bin/sh
+USE_TARGET=$1
+USE_SUBTARGET=$2
+USE_ARCH=$3
 
 cd build
 
@@ -17,16 +20,17 @@ sed -i "s/.*CONFIG_qbt_webui_Lang-zh[=\| ].*/CONFIG_qbt_webui_Lang-zh=y/g" .conf
 
 make package/luci-app-qbittorrent/compile V=s -j$(nproc)
 
-export TARGET_PATH=build/bin/targets/${{env.USE_TARGET}}/${{env.USE_SUBTARGET}}
-export PACKAGE_PATH=build/bin/packages/${{env.USE_ARCH}}
+export TARGET_PATH=build/bin/targets/${USE_TARGET}/${USE_SUBTARGET}
+export PACKAGE_PATH=build/bin/packages/${USE_ARCH}
 
-mkdir -p ./${{env.USE_ARCH}}/1 ./${{env.USE_ARCH}}/2
-cp -f ${PACKAGE_PATH}/base/qt5* ./${{env.USE_ARCH}}/1
-cp -f ${PACKAGE_PATH}/base/*torrent*.ipk ./${{env.USE_ARCH}}/1
-cp -f ${PACKAGE_PATH}/base/libopenssl* ./${{env.USE_ARCH}}/2
-cp -f ${PACKAGE_PATH}/packages/boost-system* ./${{env.USE_ARCH}}/2
-cp -f ${PACKAGE_PATH}/packages/libdouble-conversion* ./${{env.USE_ARCH}}/2
-cp -f ${PACKAGE_PATH}/packages/libpcre2-16* ./${{env.USE_ARCH}}/2
-cp -f ${PACKAGE_PATH}/base/zlib_* ./${{env.USE_ARCH}}/2
-cp -f ${TARGET_PATH}/packages/libstdcpp* ./${{env.USE_ARCH}}/2
-tar -cJvf ${{env.USE_ARCH}}.tar.xz ${{env.USE_ARCH}}
+cd ..
+mkdir -p ./${USE_ARCH}/1 ./${USE_ARCH}/2
+cp -f ${PACKAGE_PATH}/base/qt5* ./${USE_ARCH}/1
+cp -f ${PACKAGE_PATH}/base/*torrent*.ipk ./${USE_ARCH}/1
+cp -f ${PACKAGE_PATH}/base/libopenssl* ./${USE_ARCH}/2
+cp -f ${PACKAGE_PATH}/packages/boost-system* ./${USE_ARCH}/2
+cp -f ${PACKAGE_PATH}/packages/libdouble-conversion* ./${USE_ARCH}/2
+cp -f ${PACKAGE_PATH}/packages/libpcre2-16* ./${USE_ARCH}/2
+cp -f ${PACKAGE_PATH}/base/zlib_* ./${USE_ARCH}/2
+cp -f ${TARGET_PATH}/packages/libstdcpp* ./${USE_ARCH}/2
+tar -cJvf ${USE_ARCH}.tar.xz ${USE_ARCH}

@@ -49,7 +49,7 @@ jobs:
         git clone https://${{ secrets.SUPER_TOKEN }}@github.com/brvphoenix/SomePackages.git
         mv -f ./SomePackages/qbittorrent ./build/package/
         chmod 755 generate.sh
-        ./generate.sh
+        ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{env.USE_ARCH}}
     - name: Upload IPKs
       run: |
         PATH_TO_FILE=./${{env.USE_ARCH}}.tar.xz
