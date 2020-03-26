@@ -52,8 +52,8 @@ jobs:
         ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{env.USE_ARCH}}
     - name: Upload IPKs
       run: |
-        PATH_TO_FILE=./${{env.USE_ARCH}}.tar.xz
-        FILENAME=${{env.USE_ARCH}}.tar.xz
+        PATH_TO_FILE=./${{env.USE_ARCH}}-static.tar.xz
+        FILENAME=${{env.USE_ARCH}}-static.tar.xz
         GITHUB_TOKEN=${{ secrets.SUPER_TOKEN }}
         RELEASE_ID=$(jq --raw-output '.release.id' $GITHUB_EVENT_PATH)
         UPLOAD_URL="https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=${FILENAME}"
