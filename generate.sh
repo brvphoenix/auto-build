@@ -36,9 +36,14 @@ sed -i "s/.*\(CONFIG_LUCI_LANG_zh_Hans\).*/\1=y/g" .config
 
 make package/luci-app-qbittorrent/compile V=s -j$(nproc)
 
+export TARGET_PATH=build/bin/targets/${USE_TARGET}/${USE_SUBTARGET}
 export PACKAGE_PATH=build/bin/packages/${USE_ARCH}
 
 cd ..
 mkdir -p ./${USE_ARCH}-static
 cp -f ${PACKAGE_PATH}/base/*qbittorrent*.ipk ./${USE_ARCH}-static/
+cp -f ${TARGET_PATH}/packages/libstdcpp* ./${USE_ARCH}-static/
+
+[ "$USE_ARCH" = "mips_24kc" ] || [ "$USE_ARCH" = "mipsel_24kc" ] && cp -f ${TARGET_PATH}/packages/libatomic* ./${USE_ARCH}-static/
+
 tar -cJvf ${USE_ARCH}-static.tar.xz ${USE_ARCH}-static
