@@ -12,15 +12,16 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       USE_CHOICE: target5
     steps:
-    - name: Checkout
+    - name: Clone Current Repository
       uses: actions/checkout@master
     - name: Install Dependencies
       run: |
         sudo -E apt-get update
         sudo -E apt-get -y install build-essential flex gawk gcc-multilib git libelf-dev libncurses5-dev \
-                           libssl-dev python subversion zlib1g-dev autoconf automake libtool autopoint jq curl
-        sudo -E apt-get -y autoremove --purge
-        sudo -E apt-get clean
+                           libssl-dev python subversion zlib1g-dev autoconf automake libtool autopoint jqs
+    - name: Initialize Parameters
+      run:
+        echo "::set-env name=RELEASE_ID::$(jq --raw-output '.release.id' $GITHUB_EVENT_PATH)"
 
         echo "::set-env name=USE_PROTOCOL::$(jq --raw-output '.USE_PROTOCOL' target.json)"
         echo "::set-env name=USE_DOMAIN::$(jq --raw-output '.USE_DOMAIN' target.json)"
@@ -44,29 +45,24 @@ jobs:
 
         tar -xJvf *.tar.xz && rm -f *.tar.xz
         mv openwrt-sdk* build
-    - name: Configure
+    - name: Clone Source
+      uses: actions/checkout@v2
+      with:
+        repository: brvphoenix/SomePackages
+        token: ${{ secrets.SUPER_TOKEN }}
+        path: SomePackages
+    - name: Build the Binary Files
       run: |
-        git clone https://${{ secrets.SUPER_TOKEN }}@github.com/brvphoenix/SomePackages.git
-        mv -f ./SomePackages/qbittorrent ./build/package/
         chmod 755 generate.sh
         ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{env.USE_ARCH}}
-    - name: Upload IPKs
-      run: |
-        PATH_TO_FILE=./${{env.USE_ARCH}}-static.tar.xz
-        FILENAME=${{env.USE_ARCH}}-static.tar.xz
-        GITHUB_TOKEN=${{ secrets.SUPER_TOKEN }}
-        RELEASE_ID=$(jq --raw-output '.release.id' $GITHUB_EVENT_PATH)
-        UPLOAD_URL="https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=${FILENAME}"
-        CONTENT_TYPE_HEADER="Content-Type: application/zip"
-        CONTENT_LENGTH_HEADER="Content-Length: $(stat -c%s "${PATH_TO_FILE}")"
-        AUTH_HEADER="Authorization: token ${GITHUB_TOKEN}"
-
-        curl \
-        -sSL \
-        -XPOST \
-        -H "${AUTH_HEADER}" \
-        -H "${CONTENT_LENGTH_HEADER}" \
-        -H "${CONTENT_TYPE_HEADER}" \
-        --upload-file "${PATH_TO_FILE}" \
-        "${UPLOAD_URL}"
+    - name: Upload Release Asset
+      id: upload-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
+      with:
+        upload_url: https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${{ env.RELEASE_ID }}/assets{?name,label}
+        asset_path: ./${{env.USE_ARCH}}-static.tar.xz
+        asset_name: ${{env.USE_ARCH}}-static.tar.xz
+        asset_content_type: application/zip
 

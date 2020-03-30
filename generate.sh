@@ -3,6 +3,7 @@ USE_TARGET=$1
 USE_SUBTARGET=$2
 USE_ARCH=$3
 
+mv ./SomePackages/qbittorrent ./build/package/
 rm -rf build/package/qbittorrent/libtorrent-rasterbar
 mv ./libtorrent-rasterbar build/package/qbittorrent/
 
