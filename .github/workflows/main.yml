@@ -1,4 +1,4 @@
-name: Create Draft
+name: Auto-Release
 
 on:
   push:
@@ -6,19 +6,102 @@ on:
       - 'v*'
 
 jobs:
-  build:
-    runs-on: ubuntu-18.04
-
+  create-release:
+    runs-on: ubuntu-latest
     steps:
     - name: Create Release
+      id: create_release
       uses: actions/create-release@master
       env:
         GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
       with:
         tag_name: ${{ github.ref }}
-        release_name: Release statically building ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
         body: |
-            Update the patches.
+            Changes in this Release
+            - First Change
+            - Second Change
         draft: false
         prerelease: true
+    - name: Save the upload path
+      run: |
+        echo '${{steps.create_release.outputs.upload_url}}'> path.txt
+    - name: Share the upload path
+      uses: actions/upload-artifact@master
+      with:
+        name: path
+        path: path.txt
+  build-matrix:
+    needs: create-release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        link: [dynamic, static]
+        ver: [x86_64, mips_24kc, mipsel_24kc, arm_cortex-a9, arm_cortex-a7_neon-vfpv4, arm_cortex-a9_vfpv3, arm_cortex-a15_neon-vfpv4]
+    steps:
+    - name: Clone Current Repository
+      uses: actions/checkout@master
+    - name: Install Dependencies
+      run: |
+        sudo -E apt-get update
+        sudo -E apt-get -y install build-essential flex gawk gcc-multilib git libelf-dev libncurses5-dev \
+                           libssl-dev python subversion zlib1g-dev autoconf automake libtool autopoint \
+                           libclang-dev jq
+    - name: Initialize Parameters
+      run: |
+        echo "::set-env name=USE_QT::$(jq --raw-output '.USE_QT' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_ARCH::${{matrix.ver}}"
+        echo "::set-env name=USE_PROTOCOL::$(jq --raw-output '.USE_PROTOCOL' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_DOMAIN::$(jq --raw-output '.USE_DOMAIN' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_RELEASE::$(jq --raw-output '.USE_RELEASE' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_VERSION::$(jq --raw-output '.USE_VERSION' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_TARGET::$(jq --raw-output '.["${{matrix.ver}}"].USE_TARGET' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_SUBTARGET::$(jq --raw-output '.["${{matrix.ver}}"].USE_SUBTARGET' ${{matrix.link}}.json)"
+        [ "$(jq --raw-output '.["${{matrix.ver}}"].USE_EABI' ${{matrix.link}}.json)" = "null" ] && \
+          echo "::set-env name=USE_GCC::$(jq --raw-output '.USE_GCC' ${{matrix.link}}.json)" || \
+          echo "::set-env name=USE_GCC::$(jq --raw-output '.USE_GCC' ${{matrix.link}}.json)_eabi"
+        [ "$(jq --raw-output '.["${{matrix.ver}}"].USE_UNIQUE' ${{matrix.link}}.json)" = "null" ] && \
+          USE_SDK="$(jq --raw-output '.["${{matrix.ver}}"].USE_TARGET' ${{matrix.link}}.json)-$(jq --raw-output '.["${{matrix.ver}}"].USE_SUBTARGET' ${{matrix.link}}.json)" || \
+          USE_SDK="$(jq --raw-output '.["${{matrix.ver}}"].USE_TARGET' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_SDK::${USE_SDK}"
+    - name: Download the SDK
+      run: |
+        [ "${{env.USE_RELEASE}}" = "releases" ] && { \
+            URL_FIX=${{env.USE_RELEASE}}/${{env.USE_VERSION}}; \
+            SDK_FILE=openwrt-sdk-${{env.USE_VERSION}}-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz; } || { \
+            URL_FIX=${{env.USE_RELEASE}}; \
+            SDK_FILE=openwrt-sdk-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz;}
+        wget --no-check-certificate ${{env.USE_PROTOCOL}}://${{env.USE_DOMAIN}}/${URL_FIX}/targets/${{env.USE_TARGET}}/${{env.USE_SUBTARGET}}/${SDK_FILE}
+        tar -xJvf *.tar.xz && rm -f *.tar.xz
+        mv openwrt-sdk* build
+    - name: Clone Source
+      uses: actions/checkout@master
+      with:
+        ref: ${{env.USE_QT}}
+        repository: brvphoenix/SomePackages
+        token: ${{ secrets.SUPER_TOKEN }}
+        path: SomePackages
+    - name: Build the Binary Files
+      run: |
+        chmod 755 generate.sh
+        ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{env.USE_ARCH}} ${{matrix.link}}
+    - name: Fetch the upload path
+      uses: actions/download-artifact@master
+      with:
+        name: path
+    - name: Set the upload_url
+      shell: bash
+      run: |
+        echo "::set-env name=UPLOAD_URL::$(cat path/path.txt)"
+    - name: Upload Release Asset
+      id: upload-release-asset
+      uses: actions/upload-release-asset@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
+      with:
+        upload_url: ${{env.UPLOAD_URL}}
+        asset_path: ./${{env.USE_ARCH}}-${{matrix.link}}.tar.xz
+        asset_name: ${{env.USE_ARCH}}-${{matrix.link}}.tar.xz
+        asset_content_type: application/zip
 
