@@ -4,9 +4,9 @@ USE_SUBTARGET=$2
 USE_ARCH=$3
 USE_LINK=$4
 
-mv ./SomePackages/qbittorrent ./build/package/
-rm -rf build/package/qbittorrent/libtorrent-rasterbar
-mv ./libtorrent-rasterbar build/package/qbittorrent/
+find ./SomePackages/qbittorrent -mindepth 1 -maxdepth 1 -path ./SomePackages/qbittorrent/CMake -prune -o -type d -exec cp -r {} ./build/package/ \;
+find build/package -maxdepth 2 -type d -name libtorrent-rasterbar | xargs rm -rf
+mv ./libtorrent-rasterbar build/package/
 
 cd build
 
@@ -18,27 +18,63 @@ sed -i 's/git\.openwrt\.org\/feed\/telephony/github\.com\/openwrt\/telephony/g' 
 ./scripts/feeds update -a
 ./scripts/feeds install -a
 
-make defconfig
+rm .config && touch .config
 
 [ "$USE_LINK" = "static" ] && {
-	sed -i "s/.*\(CONFIG_QT5_STATIC_BUILD\).*/\1=y/g" .config
-	sed -i "s/.*\(CONFIG_QT5_USING_SYSTEM_DC\).*/# \1 is not set/g" .config
-	sed -i "s/.*\(CONFIG_QT5_USING_SYSTEM_PCRE2\).*/# \1 is not set/g" .config
-	sed -i "s/.*\(CONFIG_QT5_USING_SYSTEM_ZLIB\).*/\1=y/g" .config
-
-	sed -i "s/.*\(CONFIG_QBT_LIBTORRENT_STATIC_LINK\).*/\1=y/g" .config
-	sed -i "s/.*\(CONFIG_QBT_ZLIB_STATIC_LINK\).*/\1=y/g" .config
+	cat >> .config <<EOF
+CONFIG_QT5_OPENSSL_LINKED=y
+CONFIG_QT5_STATIC=y
+CONFIG_QT5_STATIC_RUNTIME=y
+# CONFIG_QT5_SYSTEM_DC is not set
+CONFIG_QT5_SYSTEM_PCRE2=y
+CONFIG_QT5_SYSTEM_ZLIB=y
+CONFIG_QBT_LIBTORRENT_STATIC=y
+CONFIG_QBT_ZLIB_STATIC=y
+EOF
 }
+
+cat >> .config <<EOF
+CONFIG_QBT_REMOVE_GUI_TR=y
+CONFIG_QBT_DAEMON_LANG-zh=y
+CONFIG_QBT_WEBUI_LANG-zh=y
+CONFIG_LUCI_LANG_zh_Hans=y
+EOF
+
+cat >> .config <<EOF
+# CONFIG_boost-libs-all is not set
+# CONFIG_boost-test-pkg is not set
+# CONFIG_boost-graph-parallel is not set
+CONFIG_PACKAGE_boost-atomic=m
+CONFIG_PACKAGE_boost-chrono=m
+# CONFIG_PACKAGE_boost-container is not set
+CONFIG_PACKAGE_boost-context=m
+# CONFIG_PACKAGE_boost-contract is not set
+# CONFIG_PACKAGE_boost-coroutine is not set
+CONFIG_PACKAGE_boost-date_time=m
+# CONFIG_PACKAGE_boost-fiber is not set
+CONFIG_PACKAGE_boost-filesystem=m
+# CONFIG_PACKAGE_boost-graph is not set
+CONFIG_PACKAGE_boost-iostreams=m
+# CONFIG_PACKAGE_boost-log is not set
+# CONFIG_PACKAGE_boost-math is not set
+CONFIG_PACKAGE_boost-program_options=m
+# CONFIG_PACKAGE_boost-python3 is not set
+# CONFIG_PACKAGE_boost-random is not set
+CONFIG_PACKAGE_boost-regex=m
+# CONFIG_PACKAGE_boost-serialization is not set
+# CONFIG_PACKAGE_boost-wserialization is not set
+# CONFIG_PACKAGE_boost-stacktrace is not set
+CONFIG_PACKAGE_boost-system=m
+CONFIG_PACKAGE_boost-thread=m
+# CONFIG_PACKAGE_boost-timer is not set
+# CONFIG_PACKAGE_boost-type_erasure is not set
+# CONFIG_PACKAGE_boost-wave is not set
+EOF
 
 make defconfig
 
-[ "$USE_LINK" = "static" ] && sed -i "s/.*\(CONFIG_QT5_OPENSSL_STATIC_RUNTIME\).*/\1=y/g" .config
-
-sed -i "s/.*CONFIG_QBT_DAEMON_LANG-zh[=\| ].*/CONFIG_QBT_DAEMON_LANG-zh=y/g" .config
-sed -i "s/.*CONFIG_QBT_WEBUI_LANG-zh[=\| ].*/CONFIG_QBT_WEBUI_LANG-zh=y/g" .config
-sed -i "s/.*\(CONFIG_LUCI_LANG_zh_Hans\).*/\1=y/g" .config
-
-make package/luci-app-qbittorrent/compile V=s -j$(nproc)
+make package/luci-app-qbittorrent/compile V=s -j$(nproc) 2>&1 | tee ${USE_ARCH}-${USE_LINK}.log
+XZ_OPT=-9 tar -cJf ${USE_ARCH}-${USE_LINK}.log.tar.xz ${USE_ARCH}-${USE_LINK}.log && mv ${USE_ARCH}-${USE_LINK}.log.tar.xz ../
 
 export TARGET_PATH=build/bin/targets/${USE_TARGET}/${USE_SUBTARGET}
 export SAVE_PATH=${USE_ARCH}-${USE_LINK}
@@ -47,23 +83,24 @@ cd ..
 mkdir -p ${SAVE_PATH}
 
 if [ "$USE_LINK" = "static" ]; then
-	cp -f $(find build/bin/packages -type f -iname *qbittorrent*.ipk) ${SAVE_PATH}
-	cp -f ${TARGET_PATH}/packages/libstdcpp* ${SAVE_PATH}
-
-	[ "$USE_ARCH" = "mips_24kc" ] || [ "$USE_ARCH" = "mipsel_24kc" ] && cp -f ${TARGET_PATH}/packages/libatomic* ${SAVE_PATH}
+	find build/bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${SAVE_PATH} \;
 else
 	mkdir -p ${SAVE_PATH}/1 ${SAVE_PATH}/2
-	cp -f $(find build/bin/packages -type f -iname qt5*) ${SAVE_PATH}/1
-	cp -f $(find build/bin/packages -type f -iname  *torrent*.ipk) ${SAVE_PATH}/1
-	cp -f $(find build/bin/packages -type f -iname  libopenssl1*) ${SAVE_PATH}/2
-	cp -f $(find build/bin/packages -type f -iname boost-system*) ${SAVE_PATH}/2
-	cp -f $(find build/bin/packages -type f -iname libdouble-conversion*) ${SAVE_PATH}/2
-	cp -f $(find build/bin/packages -type f -iname libpcre2-16*) ${SAVE_PATH}/2
-	cp -f $(find build/bin/packages -type f -iname  zlib_*) ${SAVE_PATH}/2
-	cp -f ${TARGET_PATH}/packages/libstdcpp* ${SAVE_PATH}/2
+	find build/bin/packages -type f \( -iname qt5* -or -iname  *torrent*.ipk \) -exec cp -f {} ${SAVE_PATH}/1 \;
 
-	[ "$USE_ARCH" = "mips_24kc" ] || [ "$USE_ARCH" = "mipsel_24kc" ] && cp -f ${TARGET_PATH}/packages/libatomic* ${SAVE_PATH}/2
+	find build/bin/packages -type f \( \
+		-iname libopenssl1* -or \
+		-iname boost-system* -or \
+		-iname libdouble-conversion* -or \
+		-iname libpcre2-16* -or \
+		-iname zlib_* \
+	\) -exec cp -f {} ${SAVE_PATH}/2 \;
+
+	find build/bin/targets -type f -iname libstdcpp* -exec cp -f {} ${SAVE_PATH}/2 \;
+
+	[ "$USE_ARCH" = "mips_24kc" ] || [ "$USE_ARCH" = "mipsel_24kc" ] && \
+		find build/bin/targets -type f -iname libatomic* -exec cp -f {} ${SAVE_PATH}/2 \;
 fi
 
-tar -cJvf ${SAVE_PATH}.tar.xz ${SAVE_PATH}
+tar -cJf ${SAVE_PATH}.tar.xz ${SAVE_PATH}
 

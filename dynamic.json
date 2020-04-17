@@ -1,42 +1,51 @@
 {
-	"USE_PROTOCOL": "https",
-	"USE_DOMAIN": "downloads.openwrt.org",
-	"USE_RELEASE": "releases",
-	"USE_VERSION": "19.07.2",
-	"USE_GCC": "gcc-7.5.0_musl",
-	"USE_QT": "master",
-	"x86_64": {
-		"USE_TARGET": "x86",
-		"USE_SUBTARGET": "64"
+	"qbt": {
+		"USE_BRANCH": "master"
 	},
-	"mips_24kc": {
-		"USE_TARGET": "ath79",
-		"USE_SUBTARGET": "generic"
-	},
-	"mipsel_24kc": {
-		"USE_TARGET": "ramips",
-		"USE_SUBTARGET": "mt7621"
-	},
-	"arm_cortex-a9": {
-		"USE_TARGET": "bcm53xx",
-		"USE_SUBTARGET": "generic",
-		"USE_EABI": "1",
-		"USE_UNIQUE": "1"
-	},
-	"arm_cortex-a7_neon-vfpv4": {
-		"USE_TARGET": "ipq40xx",
-		"USE_SUBTARGET": "generic",
-		"USE_EABI": "1"
-	},
-	"arm_cortex-a9_vfpv3": {
-		"USE_TARGET": "mvebu",
-		"USE_SUBTARGET": "cortexa9",
-		"USE_EABI": "1"
-	},
-	"arm_cortex-a15_neon-vfpv4": {
-		"USE_TARGET": "ipq806x",
-		"USE_SUBTARGET": "generic",
-		"USE_EABI": "1"
+	"openwrt": {
+		"USE_PROTOCOL": "http",
+		"USE_DOMAIN": "downloads.cdn.openwrt.org",
+		"USE_RELEASE": "releases",
+		"USE_VERSION": "19.07.2",
+		"x86_64": {
+			"USE_TARGET": "x86",
+			"USE_SUBTARGET": "64",
+			"USE_GCC": "gcc-7.5.0_musl"
+		},
+		"mips_24kc": {
+			"USE_TARGET": "ath79",
+			"USE_SUBTARGET": "generic",
+			"USE_GCC": "gcc-7.5.0_musl"
+		},
+		"mipsel_24kc": {
+			"USE_TARGET": "ramips",
+			"USE_SUBTARGET": "mt7621",
+			"USE_GCC": "gcc-7.5.0_musl"
+		},
+		"arm_cortex-a9": {
+			"USE_TARGET": "bcm53xx",
+			"USE_SUBTARGET": "generic",
+			"USE_GCC": "gcc-7.5.0_musl",
+			"USE_EABI": "1",
+			"USE_UNIQUE": "1"
+		},
+		"arm_cortex-a7_neon-vfpv4": {
+			"USE_TARGET": "ipq40xx",
+			"USE_SUBTARGET": "generic",
+			"USE_GCC": "gcc-7.5.0_musl",
+			"USE_EABI": "1"
+		},
+		"arm_cortex-a9_vfpv3": {
+			"USE_TARGET": "mvebu",
+			"USE_SUBTARGET": "cortexa9",
+			"USE_GCC": "gcc-7.5.0_musl",
+			"USE_EABI": "1"
+		},
+		"arm_cortex-a15_neon-vfpv4": {
+			"USE_TARGET": "ipq806x",
+			"USE_SUBTARGET": "generic",
+			"USE_GCC": "gcc-7.5.0_musl",
+			"USE_EABI": "1"
+		}
 	}
 }
-
