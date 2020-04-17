@@ -6,6 +6,9 @@ on:
       - master
     tags-ignore:
       - v*
+  pull_request:
+    branches:
+      - master
 
 jobs:
   build:
@@ -20,25 +23,23 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo -E apt-get update
-        sudo -E apt-get -y install build-essential flex gawk gcc-multilib git libelf-dev libncurses5-dev \
-                           libssl-dev python subversion zlib1g-dev autoconf automake libtool autopoint \
-                           libclang-dev jq
+        sudo -E apt-get -y install flex gawk git jq wget
     - name: Initialize Parameters
       run: |
-        echo "::set-env name=USE_PROTOCOL::$(jq --raw-output '.USE_PROTOCOL' dynamic.json)"
-        echo "::set-env name=USE_DOMAIN::$(jq --raw-output '.USE_DOMAIN' dynamic.json)"
-        echo "::set-env name=USE_RELEASE::$(jq --raw-output '.USE_RELEASE' dynamic.json)"
-        echo "::set-env name=USE_VERSION::$(jq --raw-output '.USE_VERSION' dynamic.json)"
+        echo "::set-env name=USE_PROTOCOL::$(jq -r '.openwrt.USE_PROTOCOL' dynamic.json)"
+        echo "::set-env name=USE_DOMAIN::$(jq -r '.openwrt.USE_DOMAIN' dynamic.json)"
+        echo "::set-env name=USE_RELEASE::$(jq -r '.openwrt.USE_RELEASE' dynamic.json)"
+        echo "::set-env name=USE_VERSION::$(jq -r '.openwrt.USE_VERSION' dynamic.json)"
 
-        echo "::set-env name=USE_ARCH::$(jq --raw-output '.["${{env.USE_CHOICE}}"].USE_ARCH' dynamic.json)"
-        echo "::set-env name=USE_TARGET::$(jq --raw-output '.["${{env.USE_CHOICE}}"].USE_TARGET' dynamic.json)"
-        echo "::set-env name=USE_SUBTARGET::$(jq --raw-output '.["${{env.USE_CHOICE}}"].USE_SUBTARGET' dynamic.json)"
-        [ "$(jq --raw-output '.["${{env.USE_CHOICE}}"].USE_EABI' dynamic.json)" = "null" ] && \
-          echo "::set-env name=USE_GCC::$(jq --raw-output '.USE_GCC' dynamic.json)" || \
-          echo "::set-env name=USE_GCC::$(jq --raw-output '.USE_GCC' dynamic.json)_eabi"
-        [ "$(jq --raw-output '.["${{env.USE_CHOICE}}"].USE_UNIQUE' dynamic.json)" = "null" ] && \
-          USE_SDK="$(jq --raw-output '.["${{env.USE_CHOICE}}"].USE_TARGET' dynamic.json)-$(jq --raw-output '.["${{env.USE_CHOICE}}"].USE_SUBTARGET' dynamic.json)" || \
-          USE_SDK="$(jq --raw-output '.["${{env.USE_CHOICE}}"].USE_TARGET' dynamic.json)"
+        echo "::set-env name=USE_ARCH::${{env.USE_CHOICE}}"
+        echo "::set-env name=USE_TARGET::$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_TARGET' dynamic.json)"
+        echo "::set-env name=USE_SUBTARGET::$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_SUBTARGET' dynamic.json)"
+        [ "$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_EABI' dynamic.json)" = "null" ] && \
+          echo "::set-env name=USE_GCC::$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_GCC' dynamic.json)" || \
+          echo "::set-env name=USE_GCC::$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_GCC' dynamic.json)_eabi"
+        [ "$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_UNIQUE' dynamic.json)" = "null" ] && \
+          USE_SDK="$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_TARGET' dynamic.json)-$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_SUBTARGET' dynamic.json)" || \
+          USE_SDK="$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_TARGET' dynamic.json)"
         echo "::set-env name=USE_SDK::${USE_SDK}"
     - name: Download the SDK
       run: |
@@ -49,7 +50,7 @@ jobs:
             SDK_FILE=openwrt-sdk-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz;}
         wget --no-check-certificate ${{env.USE_PROTOCOL}}://${{env.USE_DOMAIN}}/${URL_FIX}/targets/${{env.USE_TARGET}}/${{env.USE_SUBTARGET}}/${SDK_FILE}
 
-        tar -xJvf *.tar.xz && rm -f *.tar.xz
+        tar -xJf *.tar.xz && rm -f *.tar.xz
         mv openwrt-sdk* build
     - name: Clone Source
       uses: actions/checkout@v2

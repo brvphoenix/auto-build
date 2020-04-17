@@ -50,20 +50,20 @@ jobs:
                            libclang-dev jq
     - name: Initialize Parameters
       run: |
-        echo "::set-env name=USE_QT::$(jq --raw-output '.USE_QT' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_BRANCH::$(jq -r '.qbt.USE_BRANCH' ${{matrix.link}}.json)"
         echo "::set-env name=USE_ARCH::${{matrix.ver}}"
-        echo "::set-env name=USE_PROTOCOL::$(jq --raw-output '.USE_PROTOCOL' ${{matrix.link}}.json)"
-        echo "::set-env name=USE_DOMAIN::$(jq --raw-output '.USE_DOMAIN' ${{matrix.link}}.json)"
-        echo "::set-env name=USE_RELEASE::$(jq --raw-output '.USE_RELEASE' ${{matrix.link}}.json)"
-        echo "::set-env name=USE_VERSION::$(jq --raw-output '.USE_VERSION' ${{matrix.link}}.json)"
-        echo "::set-env name=USE_TARGET::$(jq --raw-output '.["${{matrix.ver}}"].USE_TARGET' ${{matrix.link}}.json)"
-        echo "::set-env name=USE_SUBTARGET::$(jq --raw-output '.["${{matrix.ver}}"].USE_SUBTARGET' ${{matrix.link}}.json)"
-        [ "$(jq --raw-output '.["${{matrix.ver}}"].USE_EABI' ${{matrix.link}}.json)" = "null" ] && \
-          echo "::set-env name=USE_GCC::$(jq --raw-output '.USE_GCC' ${{matrix.link}}.json)" || \
-          echo "::set-env name=USE_GCC::$(jq --raw-output '.USE_GCC' ${{matrix.link}}.json)_eabi"
-        [ "$(jq --raw-output '.["${{matrix.ver}}"].USE_UNIQUE' ${{matrix.link}}.json)" = "null" ] && \
-          USE_SDK="$(jq --raw-output '.["${{matrix.ver}}"].USE_TARGET' ${{matrix.link}}.json)-$(jq --raw-output '.["${{matrix.ver}}"].USE_SUBTARGET' ${{matrix.link}}.json)" || \
-          USE_SDK="$(jq --raw-output '.["${{matrix.ver}}"].USE_TARGET' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_PROTOCOL::$(jq -r '.openwrt.USE_PROTOCOL' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_DOMAIN::$(jq -r '.openwrt.USE_DOMAIN' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_RELEASE::$(jq -r '.openwrt.USE_RELEASE' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_VERSION::$(jq -r '.openwrt.USE_VERSION' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_TARGET::$(jq -r '.openwrt["${{matrix.ver}}"].USE_TARGET' ${{matrix.link}}.json)"
+        echo "::set-env name=USE_SUBTARGET::$(jq -r '.openwrt["${{matrix.ver}}"].USE_SUBTARGET' ${{matrix.link}}.json)"
+        [ "$(jq -r '.openwrt["${{matrix.ver}}"].USE_EABI' ${{matrix.link}}.json)" = "null" ] && \
+          echo "::set-env name=USE_GCC::$(jq -r '.openwrt["${{matrix.ver}}"].USE_GCC' ${{matrix.link}}.json)" || \
+          echo "::set-env name=USE_GCC::$(jq -r '.openwrt["${{matrix.ver}}"].USE_GCC' ${{matrix.link}}.json)_eabi"
+        [ "$(jq -r '.openwrt["${{matrix.ver}}"].USE_UNIQUE' ${{matrix.link}}.json)" = "null" ] && \
+          USE_SDK="$(jq -r '.openwrt["${{matrix.ver}}"].USE_TARGET' ${{matrix.link}}.json)-$(jq -r '.openwrt["${{matrix.ver}}"].USE_SUBTARGET' ${{matrix.link}}.json)" || \
+          USE_SDK="$(jq -r '.openwrt["${{matrix.ver}}"].USE_TARGET' ${{matrix.link}}.json)"
         echo "::set-env name=USE_SDK::${USE_SDK}"
     - name: Download the SDK
       run: |
@@ -73,12 +73,12 @@ jobs:
             URL_FIX=${{env.USE_RELEASE}}; \
             SDK_FILE=openwrt-sdk-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz;}
         wget --no-check-certificate ${{env.USE_PROTOCOL}}://${{env.USE_DOMAIN}}/${URL_FIX}/targets/${{env.USE_TARGET}}/${{env.USE_SUBTARGET}}/${SDK_FILE}
-        tar -xJvf *.tar.xz && rm -f *.tar.xz
+        tar -xJf *.tar.xz && rm -f *.tar.xz
         mv openwrt-sdk* build
     - name: Clone Source
       uses: actions/checkout@master
       with:
-        ref: ${{env.USE_QT}}
+        ref: ${{env.USE_BRANCH}}
         repository: brvphoenix/SomePackages
         token: ${{ secrets.SUPER_TOKEN }}
         path: SomePackages
@@ -104,4 +104,9 @@ jobs:
         asset_path: ./${{env.USE_ARCH}}-${{matrix.link}}.tar.xz
         asset_name: ${{env.USE_ARCH}}-${{matrix.link}}.tar.xz
         asset_content_type: application/zip
+    - name: Upload the Logs
+      uses: actions/upload-artifact@master
+      with:
+        name: ${{env.USE_ARCH}}-${{matrix.link}}-log
+        path: ./${{env.USE_ARCH}}-${{matrix.link}}.log.tar.xz
 
