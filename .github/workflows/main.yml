@@ -1,25 +1,11 @@
-name: Auto-Release
+name: Check Release
 
 on:
   push:
-    tags:
-      - 'v*'
 
 jobs:
-  create-release:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Clone Current Repository
-      uses: actions/checkout@v2
-    - name: Create Release
-      env:
-        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
-      run: |
-        tag_name=$(basename ${{github.ref}})
-        hub release create -d -t master -m "Release $tag_name" $tag_name
   build-matrix:
     name: build [${{matrix.link}}, ${{matrix.arch}}]
-    needs: create-release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -132,19 +118,18 @@ jobs:
         chmod 755 generate.sh
         ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{matrix.arch}} ${{matrix.link}}
         build/scripts/dl_cleanup.py build/dl 2>&1 >/dev/null
-        rm build/dl/libtorrent-rasterbar-RC_1_2.tar.gz
+        rm -rf build/dl/libtorrent-rasterbar-RC_1_2.tar.gz
     - name: Upload the Logs
+      if: always()
       uses: actions/upload-artifact@v2
       with:
         name: ${{matrix.arch}}-${{matrix.link}}-log
         path: ./${{matrix.arch}}-${{matrix.link}}.log.tar.xz
-    - name: Upload Release Asset
-      env:
-        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
-      run: |
-        [ -n "$(find ${{matrix.arch}}-${{matrix.link}} -type f -iname *qbittorrent*)" ] || exit 1
-        tag_name=$(basename ${{github.ref}})
-        hub release edit $tag_name -a ./${{matrix.arch}}-${{matrix.link}}.tar.xz -m ""
+    - name: Upload Packages
+      uses: actions/upload-artifact@master
+      with:
+        name: ${{matrix.arch}}-${{matrix.link}}
+        path: ./${{matrix.arch}}-${{matrix.link}}.tar.xz
 
     - name: Register QEMU
       if: ${{ matrix.runtime_test }}
@@ -154,22 +139,9 @@ jobs:
     - name: Build Docker container
       if: ${{ matrix.runtime_test }}
       run: |
-        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=19.07.7 ./docker
+        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=21.02-SNAPSHOT ./docker
 
     - name: Test via Docker container
       if: ${{ matrix.runtime_test }}
       run: |
         sudo docker run --rm -v $GITHUB_WORKSPACE/${{matrix.arch}}-${{matrix.link}}:/ci -v $GITHUB_WORKSPACE/docker:/docker test-container ${{matrix.arch}}
-
-  pre-release:
-    needs: build-matrix
-    runs-on: ubuntu-latest
-    steps:
-    - name: Clone Current Repository
-      uses: actions/checkout@v2
-    - name: Edit Release Status
-      env:
-        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
-      run: |
-        tag_name=$(basename ${{github.ref}})
-        hub release edit $tag_name -p --draft=false -m ""

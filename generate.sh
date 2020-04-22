@@ -5,8 +5,6 @@ USE_ARCH=$3
 USE_LINK=$4
 
 find ./SomePackages/qbittorrent -mindepth 1 -maxdepth 1 -path ./SomePackages/qbittorrent/CMake -prune -o -type d -exec cp -r {} ./build/package/ \;
-find build/package -maxdepth 2 -type d -name libtorrent-rasterbar -exec rm -rf {} \;
-mv ./libtorrent-rasterbar build/package/
 
 cd build
 
@@ -14,6 +12,9 @@ sed -i 's/git\.openwrt\.org\/openwrt\/openwrt/github\.com\/openwrt\/openwrt/g' .
 sed -i 's/git\.openwrt\.org\/feed\/packages/github\.com\/openwrt\/packages/g' ./feeds.conf.default
 sed -i 's/git\.openwrt\.org\/project\/luci/github\.com\/openwrt\/luci/g' ./feeds.conf.default
 sed -i 's/git\.openwrt\.org\/feed\/telephony/github\.com\/openwrt\/telephony/g' ./feeds.conf.default
+
+# sed -i 's/\(CFLAGS\|CXXFLAGS\)="\(\$(TARGET.*\)"/\1="\2 \$(TARGET_CPPFLAGS) \$(EXTRA_CPPFLAGS)"/g' ./include/cmake.mk
+# sed -i 's/\(-DCMAKE_\w\+_LINKER_FLAGS:STRING\)="\(\$(TARGET_LDFLAGS)\)/\1="\2 \$(EXTRA_LDFLAGS)/g' ./include/cmake.mk
 
 # Make qmake compile in parallel
 mv ../test.mk ./package/qtbase
@@ -40,17 +41,20 @@ CONFIG_PACKAGE_libpcre2-16=y
 CONFIG_PACKAGE_boost=y
 CONFIG_PACKAGE_boost-system=y
 CONFIG_PACKAGE_libopenssl=y
-CONFIG_QT5_OPENSSL_LINKED=y
-CONFIG_QT5_STATIC=y
-# CONFIG_QT5_SYSTEM_DC is not set
-CONFIG_QT5_SYSTEM_PCRE2=y
-CONFIG_QT5_SYSTEM_ZLIB=y
+CONFIG_QT6_OPENSSL_LINKED=y
+CONFIG_QT6_STATIC=y
+# CONFIG_QT6_SYSTEM_DC is not set
+CONFIG_QT6_SYSTEM_PCRE2=y
+CONFIG_QT6_SYSTEM_ZLIB=y
 CONFIG_QBT_STATIC_LINK=y
 EOF
 
 	sed -i '/HOST_FPIC:=-fPIC/aFPIC:=-fPIC' rules.mk
 	sed -i '/(call BuildPackage,libpcre2)/i Package/libpcre2/install=true\nPackage/libpcre2-16/install=true\nPackage/libpcre2-32/install=true' feeds/packages/libs/pcre2/Makefile
 	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' feeds/packages/libs/pcre2/Makefile
+
+	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' package/libtorrent-rasterbar/Makefile
+	sed -i '/\$(eval \$(call BuildPackage,libtorrent-rasterbar))/i Package/libtorrent-rasterbar/install=true' package/libtorrent-rasterbar/Makefile
 }
 
 make defconfig
@@ -68,7 +72,7 @@ if [ "$USE_LINK" = "static" ]; then
 	find build/bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${SAVE_PATH} \;
 else
 	mkdir -p ${SAVE_PATH}/1 ${SAVE_PATH}/2
-	find build/bin/packages -type f \( -iname libqt5* -or -iname  *torrent*.ipk \) -exec cp -f {} ${SAVE_PATH}/1 \;
+	find build/bin/packages -type f \( -iname libqt6* -or -iname  *torrent*.ipk \) -exec cp -f {} ${SAVE_PATH}/1 \;
 
 	find build/bin/packages -type f \( \
 		-iname libopenssl1* -or \
