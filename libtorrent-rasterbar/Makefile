@@ -5,13 +5,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libtorrent-rasterbar
-PKG_VERSION:=1.2.5
+PKG_VERSION:=1.2.6
 PKG_RELEASE:=1
 
-PKG_SOURCE_VERSION:=3185b627ef36c5c2a8aa25f2f829ef874b2b6587
+PKG_SOURCE_VERSION:=a9968916ca82366f1c236af59aaecb9bc94ffe73
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/arvidn/libtorrent/tar.gz/$(PKG_SOURCE_VERSION)?
-PKG_HASH:=9fe73b173fe4e766d7e56433c9c16be21e12df49f6c025f96b5b64cb22a9eb94
+PKG_HASH:=8c28692ba3af7add9c59e6243773fcbca8ea8800da678e4124fc190074c9a05f
 PKG_BUILD_DIR:=$(BUILD_DIR)/libtorrent-$(PKG_SOURCE_VERSION)
 
 PKG_LICENSE:=BSL-1.0
@@ -51,7 +51,7 @@ CONFIGURE_ARGS += \
 	--disable-rpath \
 	--enable-logging=no \
 	--enable-encryption \
-	--enable-deprecated-functions \
+	--disable-deprecated-functions \
 	--with-gnu-ld  \
 	--with-boost=$(STAGING_DIR)/usr
 
