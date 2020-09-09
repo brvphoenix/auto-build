@@ -5,13 +5,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libtorrent-rasterbar
-PKG_VERSION:=1.2.6
+PKG_VERSION:=1.2.10
 PKG_RELEASE:=1
 
-PKG_SOURCE_VERSION:=eb035f662d543444f1ee94b9e34162e61e6d6081
+PKG_SOURCE_VERSION:=746be15bf340607255af1b06cb3b6212274055f8
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/arvidn/libtorrent/tar.gz/$(PKG_SOURCE_VERSION)?
-PKG_HASH:=a1fe556b48e5197233b75401df3907cfbc21447a472f416d4ba3c9d0edc695aa
+PKG_HASH:=c736fae04ef5d3b848631a5e22200e412c682628a34f615b8a1e45ebbd9d38df
 PKG_BUILD_DIR:=$(BUILD_DIR)/libtorrent-$(PKG_SOURCE_VERSION)
 
 PKG_LICENSE:=BSL-1.0
@@ -26,22 +26,23 @@ ifneq ($(PKG_JOBS),-j1)
 endif
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/nls.mk
 
-define Package/libtorrent-rasterbar
+define Package/$(PKG_NAME)
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=Rasterbar BitTorrent library
   URL:=https://www.libtorrent.org
-  DEPENDS:=+boost-system +libopenssl +libstdcpp
+  DEPENDS:=+boost-system +libgcc +libopenssl +libstdcpp $(ICONV_DEPENDS)
 endef
 
-define Package/libtorrent-rasterbar/description
+define Package/$(PKG_NAME)/description
   Rasterbar libtorrent is an open source C++ library implementing the BitTorrent
   protocol, along with most popular extensions, making it suitable for real world
   deployment. It is configurable to be able to fit both servers and embedded devices.
 endef
 
-TARGET_CXXFLAGS += -std=c++14 $(FPIC) -ffunction-sections -fdata-sections
+TARGET_CFLAGS += -std=c++14 $(FPIC) -ffunction-sections -fdata-sections
 TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
 
 CONFIGURE_ARGS += \
@@ -52,22 +53,19 @@ CONFIGURE_ARGS += \
 	--enable-logging=no \
 	--enable-encryption \
 	--disable-deprecated-functions \
-	--with-gnu-ld  \
-	--with-boost=$(STAGING_DIR)/usr
-
-define Build/Prepare
-	$(call Build/Prepare/Default)
-	cd $(PKG_BUILD_DIR) && ./autotool.sh
-endef
+	--with-gnu-ld \
+	--with-boost=$(STAGING_DIR)/usr \
+	--with-libiconv \
+	--with-libiconv-prefix=$(ICONV_PREFIX)
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)
 	$(CP) $(PKG_INSTALL_DIR)/* $(1)/
 endef
 
-define Package/libtorrent-rasterbar/install
+define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/lib
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.so* $(1)/usr/lib/
 endef
 
-$(eval $(call BuildPackage,libtorrent-rasterbar))
+$(eval $(call BuildPackage,$(PKG_NAME)))
