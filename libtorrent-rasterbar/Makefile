@@ -58,6 +58,11 @@ CONFIGURE_ARGS += \
 	--with-libiconv \
 	--with-libiconv-prefix=$(ICONV_PREFIX)
 
+define Build/Prepare
+	$(call Build/Prepare/Default)
+	cd $(PKG_BUILD_DIR) && ./autotool.sh
+endef
+
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)
 	$(CP) $(PKG_INSTALL_DIR)/* $(1)/

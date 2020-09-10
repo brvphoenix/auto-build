@@ -13,9 +13,10 @@ jobs:
       uses: actions/checkout@master
     - name: Create Release
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
       run: |
-        hub release create -d -t master -m "Release ${{github.ref}}" ${{github.ref}}
+        tag_name=$(basename ${{github.ref}})
+        hub release create -d -t master -m "Release $tag_name" $tag_name
   build-matrix:
     needs: create-release
     runs-on: ubuntu-latest
@@ -23,7 +24,7 @@ jobs:
       fail-fast: false
       matrix:
         link: [dynamic, static]
-        ver: [x86_64, mips_24kc, mipsel_24kc, arm_cortex-a9, arm_cortex-a7_neon-vfpv4, arm_cortex-a9_vfpv3, arm_cortex-a15_neon-vfpv4]
+        ver: [x86_64, mips_24kc, mipsel_24kc, arm_cortex-a9, arm_cortex-a7_neon-vfpv4, arm_cortex-a9_vfpv3, arm_cortex-a15_neon-vfpv4, aarch64_generic]
     steps:
     - name: Clone Current Repository
       uses: actions/checkout@master
@@ -71,16 +72,18 @@ jobs:
       run: |
         chmod 755 generate.sh
         ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{env.USE_ARCH}} ${{matrix.link}}
-    - name: Upload Release Asset
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        hub release edit ${{github.ref}} -a ./${{env.USE_ARCH}}-${{matrix.link}}.tar.xz -m ""
     - name: Upload the Logs
       uses: actions/upload-artifact@master
       with:
         name: ${{env.USE_ARCH}}-${{matrix.link}}-log
         path: ./${{env.USE_ARCH}}-${{matrix.link}}.log.tar.xz
+    - name: Upload Release Asset
+      env:
+        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
+      run: |
+        [ -n "$(find ${USE_ARCH}-${{matrix.link}} -type f -iname *qbittorrent*)" ] || exit 1
+        tag_name=$(basename ${{github.ref}})
+        hub release edit $tag_name -a ./${{env.USE_ARCH}}-${{matrix.link}}.tar.xz -m ""
   pre-release:
     needs: build-matrix
     runs-on: ubuntu-latest
@@ -89,7 +92,8 @@ jobs:
       uses: actions/checkout@master
     - name: Edit Release Status
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
       run: |
-        hub release edit ${{github.ref}} -p --draft=false -m ""
+        tag_name=$(basename ${{github.ref}})
+        hub release edit $tag_name -p --draft=false -m ""
 

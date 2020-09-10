@@ -4,7 +4,7 @@
 	},
 	"openwrt": {
 		"USE_PROTOCOL": "http",
-		"USE_DOMAIN": "downloads.cdn.openwrt.org",
+		"USE_DOMAIN": "downloads.openwrt.org",
 		"USE_RELEASE": "snapshots",
 		"USE_VERSION": "master",
 		"x86_64": {
@@ -45,6 +45,11 @@
 			"USE_SUBTARGET": "generic",
 			"USE_GCC": "gcc-8.4.0_musl",
 			"USE_EABI": "1"
+		},
+		"aarch64_generic": {
+			"USE_TARGET": "armvirt",
+			"USE_SUBTARGET": "64",
+			"USE_GCC": "gcc-8.4.0_musl"
 		}
 	}
 }
