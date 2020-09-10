@@ -9,28 +9,13 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     steps:
+    - name: Clone Current Repository
+      uses: actions/checkout@master
     - name: Create Release
-      id: create_release
-      uses: actions/create-release@master
       env:
-        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        body: |
-            Changes in this Release
-            - First Change
-            - Second Change
-        draft: false
-        prerelease: true
-    - name: Save the upload path
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        echo '${{steps.create_release.outputs.upload_url}}'> path.txt
-    - name: Share the upload path
-      uses: actions/upload-artifact@master
-      with:
-        name: path
-        path: path.txt
+        hub release create -d -t master -m "Release ${{github.ref}}" ${{github.ref}}
   build-matrix:
     needs: create-release
     runs-on: ubuntu-latest
@@ -86,27 +71,25 @@ jobs:
       run: |
         chmod 755 generate.sh
         ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{env.USE_ARCH}} ${{matrix.link}}
-    - name: Fetch the upload path
-      uses: actions/download-artifact@master
-      with:
-        name: path
-    - name: Set the upload_url
-      shell: bash
-      run: |
-        echo "::set-env name=UPLOAD_URL::$(cat path/path.txt)"
     - name: Upload Release Asset
-      id: upload-release-asset
-      uses: actions/upload-release-asset@master
       env:
-        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
-      with:
-        upload_url: ${{env.UPLOAD_URL}}
-        asset_path: ./${{env.USE_ARCH}}-${{matrix.link}}.tar.xz
-        asset_name: ${{env.USE_ARCH}}-${{matrix.link}}.tar.xz
-        asset_content_type: application/zip
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        hub release edit ${{github.ref}} -a ./${{env.USE_ARCH}}-${{matrix.link}}.tar.xz -m ""
     - name: Upload the Logs
       uses: actions/upload-artifact@master
       with:
         name: ${{env.USE_ARCH}}-${{matrix.link}}-log
         path: ./${{env.USE_ARCH}}-${{matrix.link}}.log.tar.xz
+  pre-release:
+    needs: build-matrix
+    runs-on: ubuntu-latest
+    steps:
+    - name: Clone Current Repository
+      uses: actions/checkout@master
+    - name: Edit Release Status
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        hub release edit ${{github.ref}} -p --draft=false -m ""
 
