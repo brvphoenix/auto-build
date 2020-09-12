@@ -31,6 +31,8 @@ CONFIG_QBT_STATIC_LINK=y
 EOF
 
 sed -i '/HOST_FPIC:=-fPIC/aFPIC:=-fPIC' rules.mk
+find feeds -type d -name 'pcre2' | xargs rm -rf;
+mv ../pcre2 package/
 }
 
 cat >> .config <<EOF
