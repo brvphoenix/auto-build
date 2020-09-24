@@ -2,24 +2,10 @@ name: Auto-Release
 
 on:
   push:
-    tags:
-      - 'v*'
 
 jobs:
-  create-release:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Clone Current Repository
-      uses: actions/checkout@master
-    - name: Create Release
-      env:
-        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
-      run: |
-        tag_name=$(basename ${{github.ref}})
-        hub release create -d -t master -m "Release $tag_name" $tag_name
   build-matrix:
     name: build [${{matrix.link}}, ${{matrix.arch}}]
-    needs: create-release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -138,13 +124,11 @@ jobs:
       with:
         name: ${{matrix.arch}}-${{matrix.link}}-log
         path: ./${{matrix.arch}}-${{matrix.link}}.log.tar.xz
-    - name: Upload Release Asset
-      env:
-        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
-      run: |
-        [ -n "$(find ${{matrix.arch}}-${{matrix.link}} -type f -iname *qbittorrent*)" ] || exit 1
-        tag_name=$(basename ${{github.ref}})
-        hub release edit $tag_name -a ./${{matrix.arch}}-${{matrix.link}}.tar.xz -m ""
+    - name: Upload Packages
+      uses: actions/upload-artifact@master
+      with:
+        name: ${{matrix.arch}}-${{matrix.link}}
+        path: ./${{matrix.arch}}-${{matrix.link}}.tar.xz
 
     - name: Register QEMU
       if: ${{ matrix.runtime_test }}
@@ -160,16 +144,3 @@ jobs:
       if: ${{ matrix.runtime_test }}
       run: |
         sudo docker run --rm -v $GITHUB_WORKSPACE/${{matrix.arch}}-${{matrix.link}}:/ci -v $GITHUB_WORKSPACE/docker:/docker test-container
-
-  pre-release:
-    needs: build-matrix
-    runs-on: ubuntu-latest
-    steps:
-    - name: Clone Current Repository
-      uses: actions/checkout@master
-    - name: Edit Release Status
-      env:
-        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
-      run: |
-        tag_name=$(basename ${{github.ref}})
-        hub release edit $tag_name -p --draft=false -m ""
