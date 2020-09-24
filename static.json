@@ -7,44 +7,33 @@
 		"USE_DOMAIN": "downloads.openwrt.org",
 		"USE_RELEASE": "snapshots",
 		"USE_VERSION": "master",
-		"x86_64": {
+		"arm_arm1176jzf-s_vfp": {
+			"USE_TARGET": "bcm27xx",
+			"USE_SUBTARGET": "bcm2708",
+			"USE_GCC": "gcc-8.4.0_musl",
+			"USE_EABI": "1"
+		},
+		"arc_arc700": {
+			"USE_TARGET": "arc770",
+			"USE_SUBTARGET": "generic",
+			"USE_GCC": "gcc-8.4.0_uClibc"
+		},
+		"arc_archs": {
+			"USE_TARGET": "archs38",
+			"USE_SUBTARGET": "generic",
+			"USE_GCC": "gcc-8.4.0_uClibc"
+		},
+		"arm_fa526": {
+			"USE_TARGET": "gemini",
+			"USE_SUBTARGET": "generic",
+			"USE_GCC": "gcc-8.4.0_musl",
+			"USE_EABI": "1",
+			"USE_UNIQUE": "1"
+		},
+		"i386_pentium": {
 			"USE_TARGET": "x86",
-			"USE_SUBTARGET": "64",
+			"USE_SUBTARGET": "legacy",
 			"USE_GCC": "gcc-8.4.0_musl"
-		},
-		"mips_24kc": {
-			"USE_TARGET": "ath79",
-			"USE_SUBTARGET": "generic",
-			"USE_GCC": "gcc-8.4.0_musl"
-		},
-		"mipsel_24kc": {
-			"USE_TARGET": "ramips",
-			"USE_SUBTARGET": "mt7621",
-			"USE_GCC": "gcc-8.4.0_musl"
-		},
-		"arm_cortex-a9": {
-			"USE_TARGET": "bcm53xx",
-			"USE_SUBTARGET": "generic",
-			"USE_GCC": "gcc-8.4.0_musl",
-			"USE_EABI": "1"
-		},
-		"arm_cortex-a7_neon-vfpv4": {
-			"USE_TARGET": "ipq40xx",
-			"USE_SUBTARGET": "generic",
-			"USE_GCC": "gcc-8.4.0_musl",
-			"USE_EABI": "1"
-		},
-		"arm_cortex-a9_vfpv3": {
-			"USE_TARGET": "mvebu",
-			"USE_SUBTARGET": "cortexa9",
-			"USE_GCC": "gcc-8.4.0_musl",
-			"USE_EABI": "1"
-		},
-		"arm_cortex-a15_neon-vfpv4": {
-			"USE_TARGET": "ipq806x",
-			"USE_SUBTARGET": "generic",
-			"USE_GCC": "gcc-8.4.0_musl",
-			"USE_EABI": "1"
 		},
 		"aarch64_generic": {
 			"USE_TARGET": "armvirt",

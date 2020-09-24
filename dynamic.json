@@ -7,45 +7,33 @@
 		"USE_DOMAIN": "downloads.openwrt.org",
 		"USE_RELEASE": "releases",
 		"USE_VERSION": "19.07.4",
-		"x86_64": {
-			"USE_TARGET": "x86",
-			"USE_SUBTARGET": "64",
-			"USE_GCC": "gcc-7.5.0_musl"
+		"arm_arm1176jzf-s_vfp": {
+			"USE_TARGET": "brcm2708",
+			"USE_SUBTARGET": "bcm2708",
+			"USE_GCC": "gcc-7.5.0_musl",
+			"USE_EABI": "1"
 		},
-		"mips_24kc": {
-			"USE_TARGET": "ath79",
+		"arc_arc700": {
+			"USE_TARGET": "arc770",
 			"USE_SUBTARGET": "generic",
-			"USE_GCC": "gcc-7.5.0_musl"
+			"USE_GCC": "gcc-8.3.0_uClibc"
 		},
-		"mipsel_24kc": {
-			"USE_TARGET": "ramips",
-			"USE_SUBTARGET": "mt7621",
-			"USE_GCC": "gcc-7.5.0_musl"
+		"arc_archs": {
+			"USE_TARGET": "archs38",
+			"USE_SUBTARGET": "generic",
+			"USE_GCC": "gcc-8.3.0_uClibc"
 		},
-		"arm_cortex-a9": {
-			"USE_TARGET": "bcm53xx",
+		"arm_fa526": {
+			"USE_TARGET": "gemini",
 			"USE_SUBTARGET": "generic",
 			"USE_GCC": "gcc-7.5.0_musl",
 			"USE_EABI": "1",
 			"USE_UNIQUE": "1"
 		},
-		"arm_cortex-a7_neon-vfpv4": {
-			"USE_TARGET": "ipq40xx",
-			"USE_SUBTARGET": "generic",
-			"USE_GCC": "gcc-7.5.0_musl",
-			"USE_EABI": "1"
-		},
-		"arm_cortex-a9_vfpv3": {
-			"USE_TARGET": "mvebu",
-			"USE_SUBTARGET": "cortexa9",
-			"USE_GCC": "gcc-7.5.0_musl",
-			"USE_EABI": "1"
-		},
-		"arm_cortex-a15_neon-vfpv4": {
-			"USE_TARGET": "ipq806x",
-			"USE_SUBTARGET": "generic",
-			"USE_GCC": "gcc-7.5.0_musl",
-			"USE_EABI": "1"
+		"i386_pentium": {
+			"USE_TARGET": "x86",
+			"USE_SUBTARGET": "legacy",
+			"USE_GCC": "gcc-7.5.0_musl"
 		},
 		"aarch64_generic": {
 			"USE_TARGET": "armvirt",
