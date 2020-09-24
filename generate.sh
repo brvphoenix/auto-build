@@ -20,8 +20,22 @@ sed -i 's/git\.openwrt\.org\/feed\/telephony/github\.com\/openwrt\/telephony/g' 
 
 rm .config && touch .config
 
+cat >> .config <<EOF
+# CONFIG_ALL_KMODS is not set
+# CONFIG_ALL is not set
+CONFIG_PACKAGE_luci-app-qbittorrent=y
+CONFIG_QBT_REMOVE_GUI_TR=y
+CONFIG_QBT_DAEMON_LANG-zh=y
+CONFIG_QBT_WEBUI_LANG-zh=y
+CONFIG_LUCI_LANG_zh_Hans=y
+EOF
+
 [ "$USE_LINK" = "static" ] && {
 	cat >> .config <<EOF
+CONFIG_PACKAGE_libpcre2-16=y
+CONFIG_PACKAGE_boost=y
+CONFIG_PACKAGE_boost-system=y
+CONFIG_PACKAGE_libopenssl=y
 CONFIG_QT5_OPENSSL_LINKED=y
 CONFIG_QT5_STATIC=y
 # CONFIG_QT5_SYSTEM_DC is not set
@@ -30,48 +44,10 @@ CONFIG_QT5_SYSTEM_ZLIB=y
 CONFIG_QBT_STATIC_LINK=y
 EOF
 
-sed -i '/HOST_FPIC:=-fPIC/aFPIC:=-fPIC' rules.mk
-find feeds -type d -name 'pcre2' | xargs rm -rf;
-mv ../pcre2 package/
+	sed -i '/HOST_FPIC:=-fPIC/aFPIC:=-fPIC' rules.mk
+	sed -i '/(call BuildPackage,libpcre2)/i Package/libpcre2/install=true\nPackage/libpcre2-16/install=true\nPackage/libpcre2-32/install=true' feeds/packages/libs/pcre2/Makefile
+	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' feeds/packages/libs/pcre2/Makefile
 }
-
-cat >> .config <<EOF
-CONFIG_QBT_REMOVE_GUI_TR=y
-CONFIG_QBT_DAEMON_LANG-zh=y
-CONFIG_QBT_WEBUI_LANG-zh=y
-CONFIG_LUCI_LANG_zh_Hans=y
-EOF
-
-cat >> .config <<EOF
-# CONFIG_boost-libs-all is not set
-# CONFIG_boost-test-pkg is not set
-# CONFIG_boost-graph-parallel is not set
-CONFIG_PACKAGE_boost-atomic=m
-CONFIG_PACKAGE_boost-chrono=m
-# CONFIG_PACKAGE_boost-container is not set
-CONFIG_PACKAGE_boost-context=m
-# CONFIG_PACKAGE_boost-contract is not set
-# CONFIG_PACKAGE_boost-coroutine is not set
-CONFIG_PACKAGE_boost-date_time=m
-# CONFIG_PACKAGE_boost-fiber is not set
-CONFIG_PACKAGE_boost-filesystem=m
-# CONFIG_PACKAGE_boost-graph is not set
-CONFIG_PACKAGE_boost-iostreams=m
-# CONFIG_PACKAGE_boost-log is not set
-# CONFIG_PACKAGE_boost-math is not set
-CONFIG_PACKAGE_boost-program_options=m
-# CONFIG_PACKAGE_boost-python3 is not set
-# CONFIG_PACKAGE_boost-random is not set
-CONFIG_PACKAGE_boost-regex=m
-# CONFIG_PACKAGE_boost-serialization is not set
-# CONFIG_PACKAGE_boost-wserialization is not set
-# CONFIG_PACKAGE_boost-stacktrace is not set
-CONFIG_PACKAGE_boost-system=m
-CONFIG_PACKAGE_boost-thread=m
-# CONFIG_PACKAGE_boost-timer is not set
-# CONFIG_PACKAGE_boost-type_erasure is not set
-# CONFIG_PACKAGE_boost-wave is not set
-EOF
 
 make defconfig
 
@@ -92,6 +68,7 @@ else
 
 	find build/bin/packages -type f \( \
 		-iname libopenssl1* -or \
+		-iname boost_* -or \
 		-iname boost-system* -or \
 		-iname libdouble-conversion* -or \
 		-iname libpcre2-16* -or \

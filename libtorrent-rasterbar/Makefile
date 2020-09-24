@@ -8,11 +8,10 @@ PKG_NAME:=libtorrent-rasterbar
 PKG_VERSION:=1.2.10
 PKG_RELEASE:=2
 
-PKG_SOURCE_VERSION:=a9ea3c85b8ce47e140a5498b58df37d95e61a1b3
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://codeload.github.com/arvidn/libtorrent/tar.gz/$(PKG_SOURCE_VERSION)?
-PKG_HASH:=365472f851ddaf35d87e744814b2099e7015d0eed8e206cc462543c8d8c7a550
-PKG_BUILD_DIR:=$(BUILD_DIR)/libtorrent-$(PKG_SOURCE_VERSION)
+PKG_SOURCE_URL:=https://codeload.github.com/arvidn/libtorrent/tar.gz/RC_1_2?
+PKG_HASH:=skip
+PKG_BUILD_DIR:=$(BUILD_DIR)/libtorrent-RC_1_2
 
 PKG_LICENSE:=BSL-1.0
 PKG_LICENSE_FILES:=LICENSE
@@ -33,7 +32,7 @@ define Package/$(PKG_NAME)
   CATEGORY:=Libraries
   TITLE:=Rasterbar BitTorrent library
   URL:=https://www.libtorrent.org
-  DEPENDS:=+boost-system +libgcc +libopenssl +libstdcpp $(ICONV_DEPENDS)
+  DEPENDS:=+boost +boost-system +libgcc +libopenssl +libstdcpp $(ICONV_DEPENDS)
 endef
 
 define Package/$(PKG_NAME)/description
