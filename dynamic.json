@@ -3,7 +3,7 @@
 		"USE_BRANCH": "master"
 	},
 	"openwrt": {
-		"USE_PROTOCOL": "http",
+		"USE_PROTOCOL": "https",
 		"USE_DOMAIN": "downloads.openwrt.org",
 		"USE_RELEASE": "releases",
 		"USE_VERSION": "19.07.4",

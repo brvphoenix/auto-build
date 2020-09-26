@@ -41,17 +41,38 @@ jobs:
           USE_SDK="$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_TARGET' dynamic.json)-$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_SUBTARGET' dynamic.json)" || \
           USE_SDK="$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_TARGET' dynamic.json)"
         echo "::set-env name=USE_SDK::${USE_SDK}"
-    - name: Download the SDK
+    - name: Check Version
+      id: check-version
       run: |
-        [ "${{env.USE_RELEASE}}" = "releases" ] && { \
-            URL_FIX=${{env.USE_RELEASE}}/${{env.USE_VERSION}}; \
-            SDK_FILE=openwrt-sdk-${{env.USE_VERSION}}-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz; } || { \
-            URL_FIX=${{env.USE_RELEASE}}; \
-            SDK_FILE=openwrt-sdk-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz;}
-        wget --no-check-certificate ${{env.USE_PROTOCOL}}://${{env.USE_DOMAIN}}/${URL_FIX}/targets/${{env.USE_TARGET}}/${{env.USE_SUBTARGET}}/${SDK_FILE}
-
-        tar -xJf *.tar.xz && rm -f *.tar.xz
-        mv openwrt-sdk* build
+        [ "${{env.USE_RELEASE}}" = "releases" ] && {
+          URL_FIX=${{env.USE_RELEASE}}/${{env.USE_VERSION}}
+          SDK_FILE=openwrt-sdk-${{env.USE_VERSION}}-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz
+        } || {
+          URL_FIX=${{env.USE_RELEASE}}
+          SDK_FILE=openwrt-sdk-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz
+        }
+        target_url=${{env.USE_PROTOCOL}}://${{env.USE_DOMAIN}}/${URL_FIX}/targets/${{env.USE_TARGET}}/${{env.USE_SUBTARGET}}
+        curl -O "${target_url}/version.buildinfo"
+        curl -O "${target_url}/feeds.buildinfo"
+        [ -e "version.buildinfo" ] && version="$(echo $(cat version.buildinfo))" || version="${{ github.run_id }}"
+        [ -e "feeds.buildinfo" ] && feeds="$(echo $(md5sum feeds.buildinfo | cut -d ' ' -f 1))" || feeds="${{ github.run_id }}"
+        echo "::set-env name=target-url::${target_url}"
+        echo "::set-env name=target-file::${SDK_FILE}"
+        echo "::set-env name=target-version::${version}"
+        echo "::set-env name=target-feeds::${feeds}"
+    - name: Cache SDK
+      uses: actions/cache@v2
+      id: cache-sdk
+      with:
+        path: ./${{ env.target-file }}
+        key: SDK-${{ matrix.ver }}-${{ env.target-version }}
+    - if: steps.cache-sdk.outputs.cache-hit != 'true'
+      run: |
+        wget --no-check-certificate ${{ env.target-url }}/${{ env.target-file }}
+    - run: |
+        tar -xJf ${{ env.target-file }}
+        mv "$(find ./ -maxdepth 1 -type d -name 'openwrt-sdk*')" build
+        rm -rf build/dl build/feeds
     - name: Clone Source
       uses: actions/checkout@v2
       with:
