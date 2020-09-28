@@ -18,6 +18,7 @@ jobs:
         tag_name=$(basename ${{github.ref}})
         hub release create -d -t master -m "Release $tag_name" $tag_name
   build-matrix:
+    name: build [${{matrix.link}}, ${{matrix.ver}}]
     needs: create-release
     runs-on: ubuntu-latest
     strategy:
@@ -81,7 +82,7 @@ jobs:
         wget --no-check-certificate ${{ env.target-url }}/${{ env.target-file }}
     - run: |
         tar -xJf ${{ env.target-file }}
-        mv "$(find ./ -maxdepth 1 -type d -name 'openwrt-sdk*')" build
+        find ./ -maxdepth 1 -type d -iname 'openwrt-sdk*' -exec mv {} build \;
         rm -rf build/dl build/feeds
     - name: Cache Source
       uses: actions/cache@v2
@@ -89,9 +90,10 @@ jobs:
         path: |
           build/dl
           build/feeds
-        key: source-${{ env.target-feeds }}
+        key: source-${{matrix.link}}-${{ env.target-feeds }}
         restore-keys: |
-          source-test-
+          source-${{matrix.link}}-
+          source-
     - name: Clone Source
       uses: actions/checkout@master
       with:
@@ -103,6 +105,7 @@ jobs:
       run: |
         chmod 755 generate.sh
         ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{env.USE_ARCH}} ${{matrix.link}}
+        build/scripts/dl_cleanup.py build/dl 2>&1 >/dev/null
     - name: Upload the Logs
       uses: actions/upload-artifact@master
       with:
