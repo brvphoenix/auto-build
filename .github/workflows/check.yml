@@ -65,7 +65,7 @@ jobs:
       id: cache-sdk
       with:
         path: ./${{ env.target-file }}
-        key: SDK-${{ matrix.ver }}-${{ env.target-version }}
+        key: SDK-x86_64-${{ env.target-version }}
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
       run: |
         wget --no-check-certificate ${{ env.target-url }}/${{ env.target-file }}
