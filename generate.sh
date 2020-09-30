@@ -5,7 +5,7 @@ USE_ARCH=$3
 USE_LINK=$4
 
 find ./SomePackages/qbittorrent -mindepth 1 -maxdepth 1 -path ./SomePackages/qbittorrent/CMake -prune -o -type d -exec cp -r {} ./build/package/ \;
-find build/package -maxdepth 2 -type d -name libtorrent-rasterbar | xargs rm -rf
+find build/package -maxdepth 2 -type d -name libtorrent-rasterbar -exec rm -rf {} \;
 mv ./libtorrent-rasterbar build/package/
 
 cd build
@@ -14,6 +14,10 @@ sed -i 's/git\.openwrt\.org\/openwrt\/openwrt/github\.com\/openwrt\/openwrt/g' .
 sed -i 's/git\.openwrt\.org\/feed\/packages/github\.com\/openwrt\/packages/g' ./feeds.conf.default
 sed -i 's/git\.openwrt\.org\/project\/luci/github\.com\/openwrt\/luci/g' ./feeds.conf.default
 sed -i 's/git\.openwrt\.org\/feed\/telephony/github\.com\/openwrt\/telephony/g' ./feeds.conf.default
+
+# Make qmake compile in parallel
+mv ../test.mk ./package/qtbase
+sed -i '/define Build\/Compile/i include ./test.mk' ./package/qtbase/Makefile
 
 ./scripts/feeds update -a
 ./scripts/feeds install -a
@@ -51,8 +55,8 @@ EOF
 
 make defconfig
 
-make package/luci-app-qbittorrent/compile V=s -j$(nproc) 2>&1 | tee ${USE_ARCH}-${USE_LINK}.log
-XZ_OPT=-9 tar -cJf ${USE_ARCH}-${USE_LINK}.log.tar.xz ${USE_ARCH}-${USE_LINK}.log && mv ${USE_ARCH}-${USE_LINK}.log.tar.xz ../
+make package/luci-app-qbittorrent/compile V=s -j$(nproc) BUILD_LOG=1
+XZ_OPT=-9 tar -cJf ${USE_ARCH}-${USE_LINK}.log.tar.xz logs && mv ${USE_ARCH}-${USE_LINK}.log.tar.xz ../
 
 export TARGET_PATH=build/bin/targets/${USE_TARGET}/${USE_SUBTARGET}
 export SAVE_PATH=${USE_ARCH}-${USE_LINK}
