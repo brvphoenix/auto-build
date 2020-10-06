@@ -32,9 +32,8 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo -E apt-get update
-        sudo -E apt-get -y install build-essential flex gawk gcc-multilib git libelf-dev libncurses5-dev \
-                           libssl-dev python subversion zlib1g-dev autoconf automake libtool autopoint \
-                           libclang-dev jq
+        sudo -E apt-get -y install build-essential curl flex gawk git jq libelf-dev libncurses5-dev \
+                           libssl-dev python python3 subversion time unzip wget xz-utils zlib1g-dev
     - name: Initialize Environment
       run: |
         USE_BRANCH=$(jq -r .qbt.USE_BRANCH ${{matrix.link}}.json)
