@@ -24,60 +24,76 @@ jobs:
       run: |
         sudo -E apt-get update
         sudo -E apt-get -y install flex gawk git jq wget
-    - name: Initialize Parameters
+    - name: Initialize Environment
       run: |
-        echo "::set-env name=USE_PROTOCOL::$(jq -r '.openwrt.USE_PROTOCOL' dynamic.json)"
-        echo "::set-env name=USE_DOMAIN::$(jq -r '.openwrt.USE_DOMAIN' dynamic.json)"
-        echo "::set-env name=USE_RELEASE::$(jq -r '.openwrt.USE_RELEASE' dynamic.json)"
-        echo "::set-env name=USE_VERSION::$(jq -r '.openwrt.USE_VERSION' dynamic.json)"
+        USE_BRANCH=$(jq -r .qbt.USE_BRANCH dynamic.json)
+        vars="USE_PROTOCOL USE_DOMAIN USE_RELEASE USE_VERSION"
+        for i in $vars; do
+          eval "${i}=$(jq -r .openwrt.${i} dynamic.json)"
+        done
 
-        echo "::set-env name=USE_ARCH::${{env.USE_CHOICE}}"
-        echo "::set-env name=USE_TARGET::$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_TARGET' dynamic.json)"
-        echo "::set-env name=USE_SUBTARGET::$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_SUBTARGET' dynamic.json)"
-        [ "$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_EABI' dynamic.json)" = "null" ] && \
-          echo "::set-env name=USE_GCC::$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_GCC' dynamic.json)" || \
-          echo "::set-env name=USE_GCC::$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_GCC' dynamic.json)_eabi"
-        [ "$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_UNIQUE' dynamic.json)" = "null" ] && \
-          USE_SDK="$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_TARGET' dynamic.json)-$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_SUBTARGET' dynamic.json)" || \
-          USE_SDK="$(jq -r '.openwrt["${{env.USE_CHOICE}}"].USE_TARGET' dynamic.json)"
-        echo "::set-env name=USE_SDK::${USE_SDK}"
-    - name: Check Version
-      id: check-version
-      run: |
-        [ "${{env.USE_RELEASE}}" = "releases" ] && {
-          URL_FIX=${{env.USE_RELEASE}}/${{env.USE_VERSION}}
-          SDK_FILE=openwrt-sdk-${{env.USE_VERSION}}-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz
-        } || {
-          URL_FIX=${{env.USE_RELEASE}}
-          SDK_FILE=openwrt-sdk-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz
+        vars="USE_GCC USE_TARGET USE_SUBTARGET USE_UNIQUE USE_EABI"
+        for i in $vars; do
+          eval "${i}=$(jq -r .openwrt[\"${{env.USE_CHOICE}}\"].${i} dynamic.json)"
+        done
+
+        USE_SOURCE_URL=${USE_PROTOCOL}://${USE_DOMAIN}/${USE_RELEASE}
+        SDK_FILE=openwrt-sdk
+
+        [ "${USE_RELEASE}" = "releases" ] && {
+          USE_SOURCE_URL=${USE_SOURCE_URL}/${USE_VERSION}
+          SDK_FILE=${SDK_FILE}-${USE_VERSION}
         }
-        target_url=${{env.USE_PROTOCOL}}://${{env.USE_DOMAIN}}/${URL_FIX}/targets/${{env.USE_TARGET}}/${{env.USE_SUBTARGET}}
-        curl -O "${target_url}/version.buildinfo"
-        curl -O "${target_url}/feeds.buildinfo"
+
+        SDK_FILE=${SDK_FILE}-${USE_TARGET}
+        [ "${USE_UNIQUE}" = "1" ] || SDK_FILE="${SDK_FILE}-${USE_SUBTARGET}"
+
+        SDK_FILE=${SDK_FILE}_${USE_GCC}
+        [ "${USE_EABI}" = "1" ] && SDK_FILE="${SDK_FILE}_eabi"
+
+        SDK_FILE=${SDK_FILE}.Linux-x86_64.tar.xz
+        USE_SOURCE_URL=${USE_SOURCE_URL}/targets/${USE_TARGET}/${USE_SUBTARGET}
+
+        echo "USE_BRANCH=${USE_BRANCH}" >> $GITHUB_ENV
+        echo "USE_TARGET=${USE_TARGET}" >> $GITHUB_ENV
+        echo "USE_SUBTARGET=${USE_SUBTARGET}" >> $GITHUB_ENV
+        echo "USE_SOURCE_URL=${USE_SOURCE_URL}" >> $GITHUB_ENV
+        echo "USE_SDK_FILE=${SDK_FILE}" >> $GITHUB_ENV
+    - name: Check Version
+      run: |
+        curl -O "${{env.USE_SOURCE_URL}}/version.buildinfo"
+        curl -O "${{env.USE_SOURCE_URL}}/feeds.buildinfo"
         [ -e "version.buildinfo" ] && version="$(echo $(cat version.buildinfo))" || version="${{ github.run_id }}"
         [ -e "feeds.buildinfo" ] && feeds="$(echo $(md5sum feeds.buildinfo | cut -d ' ' -f 1))" || feeds="${{ github.run_id }}"
-        echo "::set-env name=target-url::${target_url}"
-        echo "::set-env name=target-file::${SDK_FILE}"
-        echo "::set-env name=target-version::${version}"
-        echo "::set-env name=target-feeds::${feeds}"
+        echo "USE_SDK_VERSION=${version}" >> $GITHUB_ENV
+        echo "USE_FEEDS_VERSION=${feeds}" >> $GITHUB_ENV
     - name: Cache SDK
       uses: actions/cache@v2
       id: cache-sdk
       with:
-        path: ./${{ env.target-file }}
-        key: SDK-x86_64-${{ env.target-version }}
+        path: ./${{ env.USE_SDK_FILE }}
+        key: SDK-${{env.USE_CHOICE}}-${{ env.USE_SDK_VERSION }}
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
       run: |
-        wget --no-check-certificate ${{ env.target-url }}/${{ env.target-file }}
+        wget --no-check-certificate ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
     - run: |
-        tar -xJf ${{ env.target-file }}
-        mv "$(find ./ -maxdepth 1 -type d -name 'openwrt-sdk*')" build
+        tar -xJf ${{ env.USE_SDK_FILE }}
+        find ./ -maxdepth 1 -type d -iname 'openwrt-sdk*' -exec mv {} build \;
         rm -rf build/dl build/feeds
-    - name: Clone Source
-      uses: actions/checkout@v2
+    - name: Cache Source
+      uses: actions/cache@v2
       with:
-        ref: master
+        path: |
+          build/dl
+          build/feeds
+        key: source-dynamic-${{ env.USE_FEEDS_VERSION }}
+        restore-keys: |
+          source-dynamic-
+          source-
+    - name: Clone Source
+      uses: actions/checkout@master
+      with:
+        ref: ${{env.USE_BRANCH}}
         repository: brvphoenix/SomePackages
         token: ${{ secrets.SUPER_TOKEN }}
         path: SomePackages
-
