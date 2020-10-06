@@ -18,14 +18,14 @@ jobs:
         tag_name=$(basename ${{github.ref}})
         hub release create -d -t master -m "Release $tag_name" $tag_name
   build-matrix:
-    name: build [${{matrix.link}}, ${{matrix.ver}}]
+    name: build [${{matrix.link}}, ${{matrix.arch}}]
     needs: create-release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         link: [dynamic, static]
-        ver: [x86_64, mips_24kc, mipsel_24kc, arm_cortex-a9, arm_cortex-a7_neon-vfpv4, arm_cortex-a9_vfpv3, arm_cortex-a15_neon-vfpv4, aarch64_generic]
+        arch: [x86_64, mips_24kc, mipsel_24kc, arm_cortex-a9, arm_cortex-a7_neon-vfpv4, arm_cortex-a9_vfpv3, arm_cortex-a15_neon-vfpv4, aarch64_generic]
     steps:
     - name: Clone Current Repository
       uses: actions/checkout@master
@@ -35,53 +35,60 @@ jobs:
         sudo -E apt-get -y install build-essential flex gawk gcc-multilib git libelf-dev libncurses5-dev \
                            libssl-dev python subversion zlib1g-dev autoconf automake libtool autopoint \
                            libclang-dev jq
-    - name: Initialize Parameters
+    - name: Initialize Environment
       run: |
-        echo "::set-env name=USE_BRANCH::$(jq -r '.qbt.USE_BRANCH' ${{matrix.link}}.json)"
-        echo "::set-env name=USE_ARCH::${{matrix.ver}}"
-        echo "::set-env name=USE_PROTOCOL::$(jq -r '.openwrt.USE_PROTOCOL' ${{matrix.link}}.json)"
-        echo "::set-env name=USE_DOMAIN::$(jq -r '.openwrt.USE_DOMAIN' ${{matrix.link}}.json)"
-        echo "::set-env name=USE_RELEASE::$(jq -r '.openwrt.USE_RELEASE' ${{matrix.link}}.json)"
-        echo "::set-env name=USE_VERSION::$(jq -r '.openwrt.USE_VERSION' ${{matrix.link}}.json)"
-        echo "::set-env name=USE_TARGET::$(jq -r '.openwrt["${{matrix.ver}}"].USE_TARGET' ${{matrix.link}}.json)"
-        echo "::set-env name=USE_SUBTARGET::$(jq -r '.openwrt["${{matrix.ver}}"].USE_SUBTARGET' ${{matrix.link}}.json)"
-        [ "$(jq -r '.openwrt["${{matrix.ver}}"].USE_EABI' ${{matrix.link}}.json)" = "null" ] && \
-          echo "::set-env name=USE_GCC::$(jq -r '.openwrt["${{matrix.ver}}"].USE_GCC' ${{matrix.link}}.json)" || \
-          echo "::set-env name=USE_GCC::$(jq -r '.openwrt["${{matrix.ver}}"].USE_GCC' ${{matrix.link}}.json)_eabi"
-        [ "$(jq -r '.openwrt["${{matrix.ver}}"].USE_UNIQUE' ${{matrix.link}}.json)" = "null" ] && \
-          USE_SDK="$(jq -r '.openwrt["${{matrix.ver}}"].USE_TARGET' ${{matrix.link}}.json)-$(jq -r '.openwrt["${{matrix.ver}}"].USE_SUBTARGET' ${{matrix.link}}.json)" || \
-          USE_SDK="$(jq -r '.openwrt["${{matrix.ver}}"].USE_TARGET' ${{matrix.link}}.json)"
-        echo "::set-env name=USE_SDK::${USE_SDK}"
-    - name: Check Version
-      id: check-version
-      run: |
-        [ "${{env.USE_RELEASE}}" = "releases" ] && {
-          URL_FIX=${{env.USE_RELEASE}}/${{env.USE_VERSION}}
-          SDK_FILE=openwrt-sdk-${{env.USE_VERSION}}-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz
-        } || {
-          URL_FIX=${{env.USE_RELEASE}}
-          SDK_FILE=openwrt-sdk-${{env.USE_SDK}}_${{env.USE_GCC}}.Linux-x86_64.tar.xz
+        USE_BRANCH=$(jq -r .qbt.USE_BRANCH ${{matrix.link}}.json)
+        vars="USE_PROTOCOL USE_DOMAIN USE_RELEASE USE_VERSION"
+        for i in $vars; do
+          eval "${i}=$(jq -r .openwrt.${i} ${{matrix.link}}.json)"
+        done
+
+        vars="USE_GCC USE_TARGET USE_SUBTARGET USE_UNIQUE USE_EABI"
+        for i in $vars; do
+          eval "${i}=$(jq -r .openwrt[\"${{matrix.arch}}\"].${i} ${{matrix.link}}.json)"
+        done
+
+        USE_SOURCE_URL=${USE_PROTOCOL}://${USE_DOMAIN}/${USE_RELEASE}
+        SDK_FILE=openwrt-sdk
+
+        [ "${USE_RELEASE}" = "releases" ] && {
+          USE_SOURCE_URL=${USE_SOURCE_URL}/${USE_VERSION}
+          SDK_FILE=${SDK_FILE}-${USE_VERSION}
         }
-        target_url=${{env.USE_PROTOCOL}}://${{env.USE_DOMAIN}}/${URL_FIX}/targets/${{env.USE_TARGET}}/${{env.USE_SUBTARGET}}
-        curl -O "${target_url}/version.buildinfo"
-        curl -O "${target_url}/feeds.buildinfo"
+
+        SDK_FILE=${SDK_FILE}-${USE_TARGET}
+        [ "${USE_UNIQUE}" = "1" ] || SDK_FILE="${SDK_FILE}-${USE_SUBTARGET}"
+
+        SDK_FILE=${SDK_FILE}_${USE_GCC}
+        [ "${USE_EABI}" = "1" ] && SDK_FILE="${SDK_FILE}_eabi"
+
+        SDK_FILE=${SDK_FILE}.Linux-x86_64.tar.xz
+        USE_SOURCE_URL=${USE_SOURCE_URL}/targets/${USE_TARGET}/${USE_SUBTARGET}
+
+        echo "USE_BRANCH=${USE_BRANCH}" >> $GITHUB_ENV
+        echo "USE_TARGET=${USE_TARGET}" >> $GITHUB_ENV
+        echo "USE_SUBTARGET=${USE_SUBTARGET}" >> $GITHUB_ENV
+        echo "USE_SOURCE_URL=${USE_SOURCE_URL}" >> $GITHUB_ENV
+        echo "USE_SDK_FILE=${SDK_FILE}" >> $GITHUB_ENV
+    - name: Check Version
+      run: |
+        curl -O "${{env.USE_SOURCE_URL}}/version.buildinfo"
+        curl -O "${{env.USE_SOURCE_URL}}/feeds.buildinfo"
         [ -e "version.buildinfo" ] && version="$(echo $(cat version.buildinfo))" || version="${{ github.run_id }}"
         [ -e "feeds.buildinfo" ] && feeds="$(echo $(md5sum feeds.buildinfo | cut -d ' ' -f 1))" || feeds="${{ github.run_id }}"
-        echo "::set-env name=target-url::${target_url}"
-        echo "::set-env name=target-file::${SDK_FILE}"
-        echo "::set-env name=target-version::${version}"
-        echo "::set-env name=target-feeds::${feeds}"
+        echo "USE_SDK_VERSION=${version}" >> $GITHUB_ENV
+        echo "USE_FEEDS_VERSION=${feeds}" >> $GITHUB_ENV
     - name: Cache SDK
       uses: actions/cache@v2
       id: cache-sdk
       with:
-        path: ./${{ env.target-file }}
-        key: SDK-${{ matrix.ver }}-${{ env.target-version }}
+        path: ./${{ env.USE_SDK_FILE }}
+        key: SDK-${{ matrix.arch }}-${{ env.USE_SDK_VERSION }}
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
       run: |
-        wget --no-check-certificate ${{ env.target-url }}/${{ env.target-file }}
+        wget --no-check-certificate ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
     - run: |
-        tar -xJf ${{ env.target-file }}
+        tar -xJf ${{ env.USE_SDK_FILE }}
         find ./ -maxdepth 1 -type d -iname 'openwrt-sdk*' -exec mv {} build \;
         rm -rf build/dl build/feeds
     - name: Cache Source
@@ -90,7 +97,7 @@ jobs:
         path: |
           build/dl
           build/feeds
-        key: source-${{matrix.link}}-${{ env.target-feeds }}
+        key: source-${{matrix.link}}-${{ env.USE_FEEDS_VERSION }}
         restore-keys: |
           source-${{matrix.link}}-
           source-
@@ -104,20 +111,20 @@ jobs:
     - name: Build the Binary Files
       run: |
         chmod 755 generate.sh
-        ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{env.USE_ARCH}} ${{matrix.link}}
+        ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{matrix.arch}} ${{matrix.link}}
         build/scripts/dl_cleanup.py build/dl 2>&1 >/dev/null
     - name: Upload the Logs
       uses: actions/upload-artifact@master
       with:
-        name: ${{env.USE_ARCH}}-${{matrix.link}}-log
-        path: ./${{env.USE_ARCH}}-${{matrix.link}}.log.tar.xz
+        name: ${{matrix.arch}}-${{matrix.link}}-log
+        path: ./${{matrix.arch}}-${{matrix.link}}.log.tar.xz
     - name: Upload Release Asset
       env:
         GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
       run: |
-        [ -n "$(find ${USE_ARCH}-${{matrix.link}} -type f -iname *qbittorrent*)" ] || exit 1
+        [ -n "$(find ${{matrix.arch}}-${{matrix.link}} -type f -iname *qbittorrent*)" ] || exit 1
         tag_name=$(basename ${{github.ref}})
-        hub release edit $tag_name -a ./${{env.USE_ARCH}}-${{matrix.link}}.tar.xz -m ""
+        hub release edit $tag_name -a ./${{matrix.arch}}-${{matrix.link}}.tar.xz -m ""
   pre-release:
     needs: build-matrix
     runs-on: ubuntu-latest
@@ -130,4 +137,3 @@ jobs:
       run: |
         tag_name=$(basename ${{github.ref}})
         hub release edit $tag_name -p --draft=false -m ""
-
