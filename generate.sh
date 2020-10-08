@@ -28,6 +28,7 @@ cat >> .config <<EOF
 # CONFIG_ALL_KMODS is not set
 # CONFIG_ALL is not set
 CONFIG_PACKAGE_luci-app-qbittorrent=y
+CONFIG_PACKAGE_python-libtorrent=y
 CONFIG_QBT_REMOVE_GUI_TR=y
 CONFIG_QBT_LANG-zh=y
 CONFIG_LUCI_LANG_zh_Hans=y
@@ -54,7 +55,7 @@ EOF
 
 make defconfig
 
-make package/luci-app-qbittorrent/compile V=s -j$(nproc) BUILD_LOG=1
+make package/libtorrent-rasterbar/compile V=s -j$(nproc) BUILD_LOG=1
 XZ_OPT=-9 tar -cJf ${USE_ARCH}-${USE_LINK}.log.tar.xz logs && mv ${USE_ARCH}-${USE_LINK}.log.tar.xz ../
 
 export TARGET_PATH=build/bin/targets/${USE_TARGET}/${USE_SUBTARGET}
@@ -64,25 +65,10 @@ cd ..
 mkdir -p ${SAVE_PATH}
 
 if [ "$USE_LINK" = "static" ]; then
-	find build/bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${SAVE_PATH} \;
+	find build/bin/packages -type f -iname  *torrent*.ipk -exec cp -f {} ${SAVE_PATH} \;
 else
-	mkdir -p ${SAVE_PATH}/1 ${SAVE_PATH}/2
-	find build/bin/packages -type f \( -iname qt5* -or -iname  *torrent*.ipk \) -exec cp -f {} ${SAVE_PATH}/1 \;
-
-	find build/bin/packages -type f \( \
-		-iname libopenssl1* -or \
-		-iname boost_* -or \
-		-iname boost-system* -or \
-		-iname libdouble-conversion* -or \
-		-iname libpcre2-16* -or \
-		-iname zlib_* \
-	\) -exec cp -f {} ${SAVE_PATH}/2 \;
-
-	find build/bin/targets -type f -iname libstdcpp* -exec cp -f {} ${SAVE_PATH}/2 \;
-
-	[ "$USE_ARCH" = "mips_24kc" ] || [ "$USE_ARCH" = "mipsel_24kc" ] && \
-		find build/bin/targets -type f -iname libatomic* -exec cp -f {} ${SAVE_PATH}/2 \;
+	mkdir -p ${SAVE_PATH}
+	find build/bin/packages -type f -iname  *torrent*.ipk -exec cp -f {} ${SAVE_PATH} \;
 fi
 
 tar -cJf ${SAVE_PATH}.tar.xz ${SAVE_PATH}
-

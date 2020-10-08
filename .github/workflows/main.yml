@@ -10,27 +10,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        link: [dynamic, static]
+        link: [dynamic]
         arch: [mips_24kc, mipsel_24kc, arm_cortex-a9, arm_cortex-a7_neon-vfpv4, arm_cortex-a9_vfpv3]
         runtime_test: [false]
         include:
           - arch: aarch64_generic
             link: dynamic
             runtime_test: true
-          - arch: aarch64_generic
-            link: static
-            runtime_test: true
           - arch: arm_cortex-a15_neon-vfpv4
             link: dynamic
             runtime_test: true
-          - arch: arm_cortex-a15_neon-vfpv4
-            link: static
-            runtime_test: true
           - arch: x86_64
             link: dynamic
-            runtime_test: true
-          - arch: x86_64
-            link: static
             runtime_test: true
     steps:
     - name: Clone Current Repository

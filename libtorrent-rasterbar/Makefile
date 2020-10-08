@@ -18,6 +18,7 @@ PKG_LICENSE_FILES:=LICENSE
 
 PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
+PKG_BUILD_DEPENDS:=python3
 PKG_USE_MIPS16:=0
 
 ifneq ($(PKG_JOBS),-j1)
@@ -26,6 +27,7 @@ endif
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/nls.mk
+include $(TOPDIR)/feeds/packages/lang/python/python3-version.mk
 
 define Package/$(PKG_NAME)
   SECTION:=libs
@@ -41,7 +43,17 @@ define Package/$(PKG_NAME)/description
   deployment. It is configurable to be able to fit both servers and embedded devices.
 endef
 
-TARGET_CFLAGS += -std=c++14 $(FPIC) -ffunction-sections -fdata-sections
+define Package/python-libtorrent
+  $(call Package/$(PKG_NAME))
+  TITLE:=Rasterbar BitTorrent library for Python
+  DEPENDS:=+boost-python3 +libopenssl +libtorrent-rasterbar +python3
+endef
+
+define Package/python-libtorrent/description
+  $(call Package/$(PKG_NAME)/description)
+endef
+
+TARGET_CFLAGS += $(FPIC) -ffunction-sections -fdata-sections
 TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
 
 CONFIGURE_ARGS += \
@@ -52,10 +64,18 @@ CONFIGURE_ARGS += \
 	--enable-logging=no \
 	--enable-encryption \
 	--disable-deprecated-functions \
+	--with-cxx-standard=14 \
 	--with-gnu-ld \
 	--with-boost=$(STAGING_DIR)/usr \
 	--with-libiconv \
 	--with-libiconv-prefix=$(ICONV_PREFIX)
+
+ifdef CONFIG_PACKAGE_python-libtorrent
+CONFIGURE_ARGS += \
+	--enable-python-binding \
+	PYTHON=$(STAGING_DIR_HOSTPKG)/bin/python3 \
+	PYTHON_CPPFLAGS=-I$(STAGING_DIR)/usr/include/python$(PYTHON3_VERSION)
+endif
 
 define Build/Prepare
 	$(call Build/Prepare/Default)
@@ -64,12 +84,18 @@ endef
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)
-	$(CP) $(PKG_INSTALL_DIR)/* $(1)/
+	$(CP) $(PKG_INSTALL_DIR)/* $(1)
 endef
 
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/lib
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.so* $(1)/usr/lib
+endef
+
+define Package/python-libtorrent/install
+	$(INSTALL_DIR) $(1)/usr/lib/python$(PYTHON3_VERSION)/site-packages
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/python$(PYTHON3_VERSION)/site-packages/*.so* $(1)/usr/lib/python$(PYTHON3_VERSION)/site-packages
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))
+$(eval $(call BuildPackage,python-libtorrent,+boost-python3,+libopenssl,+libtorrent-rasterbar))
