@@ -1,0 +1,38 @@
+--- a/bindings/python/setup.py
++++ b/bindings/python/setup.py
+@@ -3,6 +3,7 @@
+ 
+ from distutils.core import setup, Extension
+ from distutils.sysconfig import get_config_vars
++import distutils.sysconfig as sysconfig
+ import os
+ import platform
+ import sys
+@@ -51,6 +52,12 @@ def target_specific():
+         return ['-Wno-error=unused-command-line-argument-hard-error-in-future']
+     return []
+ 
++def cross_compile_inc(plat_specific=0, prefix=None):
++    from distutils.sysconfig import get_python_version
++    if prefix is None:
++        prefix = os.environ['STAGING_DIR'] + '/usr'
++    python_dir = 'python' + get_python_version()
++    return os.path.join(prefix, "include", python_dir)
+ 
+ try:
+     with open('compile_flags') as _file:
+@@ -157,6 +164,14 @@ else:
+         if isinstance(value, str):
+             cfg_vars[key] = value.replace('-Wstrict-prototypes', '')
+ 
++    if 'CFLAGS' in os.environ:
++        cfg_vars['CFLAGS'] = cfg_vars['CFLAGS'].replace(cfg_vars['CONFIGURE_CFLAGS'], '').replace(cfg_vars['CONFIGURE_CPPFLAGS'], '') + '-DNDEBUG -fno-inline'
++    if 'LDFLAGS' in os.environ:
++        cfg_vars['LDSHARED'] = cfg_vars['LDSHARED'].replace(cfg_vars['CONFIGURE_LDFLAGS'], '')
++    cfg_vars['CCSHARED'] = ''
++
++    sysconfig.get_python_inc = cross_compile_inc
++
+     src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "src"))
+     source_list = [os.path.join(src_dir, s) for s in os.listdir(src_dir) if s.endswith(".cpp")]
+ 
