@@ -9,5 +9,4 @@ cat /etc/banner
 echo "-------------------------------------------"
 opkg print-architecture
 echo "-------------------------------------------"
-qbittorrent-nox -v
-
+python3 -c "import libtorrent as lt;print(lt.__version__);print(dir(lt));"
