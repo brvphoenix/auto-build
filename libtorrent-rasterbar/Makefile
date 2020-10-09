@@ -8,7 +8,7 @@ PKG_NAME:=libtorrent-rasterbar
 PKG_VERSION:=1.2.10
 PKG_RELEASE:=2
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+PKG_SOURCE:=$(PKG_NAME)-RC_1_2.tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/arvidn/libtorrent/tar.gz/RC_1_2?
 PKG_HASH:=skip
 PKG_BUILD_DIR:=$(BUILD_DIR)/libtorrent-RC_1_2

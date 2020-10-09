@@ -25,7 +25,27 @@ jobs:
       fail-fast: false
       matrix:
         link: [dynamic, static]
-        arch: [x86_64, mips_24kc, mipsel_24kc, arm_cortex-a9, arm_cortex-a7_neon-vfpv4, arm_cortex-a9_vfpv3, arm_cortex-a15_neon-vfpv4, aarch64_generic]
+        arch: [mips_24kc, mipsel_24kc, arm_cortex-a9, arm_cortex-a7_neon-vfpv4, arm_cortex-a9_vfpv3]
+        runtime_test: [false]
+        include:
+          - arch: aarch64_generic
+            link: dynamic
+            runtime_test: true
+          - arch: aarch64_generic
+            link: static
+            runtime_test: true
+          - arch: arm_cortex-a15_neon-vfpv4
+            link: dynamic
+            runtime_test: true
+          - arch: arm_cortex-a15_neon-vfpv4
+            link: static
+            runtime_test: true
+          - arch: x86_64
+            link: dynamic
+            runtime_test: true
+          - arch: x86_64
+            link: static
+            runtime_test: true
     steps:
     - name: Clone Current Repository
       uses: actions/checkout@master
@@ -112,6 +132,23 @@ jobs:
         chmod 755 generate.sh
         ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{matrix.arch}} ${{matrix.link}}
         build/scripts/dl_cleanup.py build/dl 2>&1 >/dev/null
+        rm build/dl/libtorrent-rasterbar-RC_1_2.tar.gz
+
+    - name: Register QEMU
+      if: ${{ matrix.runtime_test }}
+      run: |
+        sudo docker run --rm --privileged aptman/qus -s -- -p
+
+    - name: Build Docker container
+      if: ${{ matrix.runtime_test }}
+      run: |
+        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=19.07.4 ./docker
+
+    - name: Test via Docker container
+      if: ${{ matrix.runtime_test }}
+      run: |
+        sudo docker run --rm -v $GITHUB_WORKSPACE/${{matrix.arch}}-${{matrix.link}}:/ci -v $GITHUB_WORKSPACE/docker:/docker test-container
+
     - name: Upload the Logs
       uses: actions/upload-artifact@master
       with:
