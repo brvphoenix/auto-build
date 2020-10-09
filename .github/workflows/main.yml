@@ -110,6 +110,7 @@ jobs:
         ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{matrix.arch}} ${{matrix.link}}
         build/scripts/dl_cleanup.py build/dl 2>&1 >/dev/null
         rm build/dl/libtorrent-rasterbar-RC_1_2.tar.gz
+
     - name: Upload the Logs
       uses: actions/upload-artifact@master
       with:
