@@ -6,7 +6,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libtorrent-rasterbar
 PKG_VERSION:=1.2.10
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_SOURCE:=$(PKG_NAME)-RC_1_2.tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/arvidn/libtorrent/tar.gz/RC_1_2?
