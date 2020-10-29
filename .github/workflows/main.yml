@@ -133,6 +133,18 @@ jobs:
         ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{matrix.arch}} ${{matrix.link}}
         build/scripts/dl_cleanup.py build/dl 2>&1 >/dev/null
         rm build/dl/libtorrent-rasterbar-RC_1_2.tar.gz
+    - name: Upload the Logs
+      uses: actions/upload-artifact@master
+      with:
+        name: ${{matrix.arch}}-${{matrix.link}}-log
+        path: ./${{matrix.arch}}-${{matrix.link}}.log.tar.xz
+    - name: Upload Release Asset
+      env:
+        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
+      run: |
+        [ -n "$(find ${{matrix.arch}}-${{matrix.link}} -type f -iname *qbittorrent*)" ] || exit 1
+        tag_name=$(basename ${{github.ref}})
+        hub release edit $tag_name -a ./${{matrix.arch}}-${{matrix.link}}.tar.xz -m ""
 
     - name: Register QEMU
       if: ${{ matrix.runtime_test }}
@@ -149,18 +161,6 @@ jobs:
       run: |
         sudo docker run --rm -v $GITHUB_WORKSPACE/${{matrix.arch}}-${{matrix.link}}:/ci -v $GITHUB_WORKSPACE/docker:/docker test-container
 
-    - name: Upload the Logs
-      uses: actions/upload-artifact@master
-      with:
-        name: ${{matrix.arch}}-${{matrix.link}}-log
-        path: ./${{matrix.arch}}-${{matrix.link}}.log.tar.xz
-    - name: Upload Release Asset
-      env:
-        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
-      run: |
-        [ -n "$(find ${{matrix.arch}}-${{matrix.link}} -type f -iname *qbittorrent*)" ] || exit 1
-        tag_name=$(basename ${{github.ref}})
-        hub release edit $tag_name -a ./${{matrix.arch}}-${{matrix.link}}.tar.xz -m ""
   pre-release:
     needs: build-matrix
     runs-on: ubuntu-latest

@@ -29,8 +29,7 @@ cat >> .config <<EOF
 # CONFIG_ALL is not set
 CONFIG_PACKAGE_luci-app-qbittorrent=y
 CONFIG_QBT_REMOVE_GUI_TR=y
-CONFIG_QBT_DAEMON_LANG-zh=y
-CONFIG_QBT_WEBUI_LANG-zh=y
+CONFIG_QBT_LANG-zh=y
 CONFIG_LUCI_LANG_zh_Hans=y
 EOF
 
