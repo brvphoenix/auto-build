@@ -46,7 +46,7 @@
 			"USE_GCC": "gcc-8.4.0_musl",
 			"USE_EABI": "1"
 		},
-		"aarch64_generic": {
+		"aarch64_cortex-a53": {
 			"USE_TARGET": "armvirt",
 			"USE_SUBTARGET": "64",
 			"USE_GCC": "gcc-8.4.0_musl"
