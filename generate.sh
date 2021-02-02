@@ -20,6 +20,7 @@ mv ../test.mk ./package/qtbase
 sed -i '/define Build\/Compile/i include ./test.mk' ./package/qtbase/Makefile
 
 ./scripts/feeds update -a
+rm -rf feeds/packages/libs/libtorrent-rasterbar
 ./scripts/feeds install -a
 
 rm .config && touch .config

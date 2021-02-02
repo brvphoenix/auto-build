@@ -28,10 +28,10 @@ jobs:
         arch: [mips_24kc, mipsel_24kc, arm_cortex-a9, arm_cortex-a7_neon-vfpv4, arm_cortex-a9_vfpv3]
         runtime_test: [false]
         include:
-          - arch: aarch64_generic
+          - arch: aarch64_cortex-a53
             link: dynamic
             runtime_test: true
-          - arch: aarch64_generic
+          - arch: aarch64_cortex-a53
             link: static
             runtime_test: true
           - arch: arm_cortex-a15_neon-vfpv4
@@ -154,12 +154,12 @@ jobs:
     - name: Build Docker container
       if: ${{ matrix.runtime_test }}
       run: |
-        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=19.07.4 ./docker
+        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=19.07.5 ./docker
 
     - name: Test via Docker container
       if: ${{ matrix.runtime_test }}
       run: |
-        sudo docker run --rm -v $GITHUB_WORKSPACE/${{matrix.arch}}-${{matrix.link}}:/ci -v $GITHUB_WORKSPACE/docker:/docker test-container
+        sudo docker run --rm -v $GITHUB_WORKSPACE/${{matrix.arch}}-${{matrix.link}}:/ci -v $GITHUB_WORKSPACE/docker:/docker test-container ${{matrix.arch}}
 
   pre-release:
     needs: build-matrix
