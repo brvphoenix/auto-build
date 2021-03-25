@@ -5,7 +5,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libtorrent-rasterbar
-PKG_VERSION:=1.2.12
+PKG_VERSION:=1.2.13
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-RC_1_2.tar.gz
@@ -19,10 +19,6 @@ PKG_LICENSE_FILES:=LICENSE
 PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
 PKG_USE_MIPS16:=0
-
-ifneq ($(PKG_JOBS),-j1)
-	PKG_JOBS:=-j2
-endif
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/nls.mk
