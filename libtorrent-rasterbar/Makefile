@@ -29,6 +29,7 @@ define Package/$(PKG_NAME)
   TITLE:=Rasterbar BitTorrent library
   URL:=https://www.libtorrent.org
   DEPENDS:=+boost +boost-system +libgcc +libopenssl +libstdcpp $(ICONV_DEPENDS)
+  ABI_VERSION:=10
 endef
 
 define Package/$(PKG_NAME)/description

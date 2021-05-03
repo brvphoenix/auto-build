@@ -154,7 +154,7 @@ jobs:
     - name: Build Docker container
       if: ${{ matrix.runtime_test }}
       run: |
-        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=19.07.5 ./docker
+        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=19.07.7 ./docker
 
     - name: Test via Docker container
       if: ${{ matrix.runtime_test }}

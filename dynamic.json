@@ -6,7 +6,7 @@
 		"USE_PROTOCOL": "https",
 		"USE_DOMAIN": "downloads.openwrt.org",
 		"USE_RELEASE": "releases",
-		"USE_VERSION": "19.07.6",
+		"USE_VERSION": "19.07.7",
 		"x86_64": {
 			"USE_TARGET": "x86",
 			"USE_SUBTARGET": "64",
