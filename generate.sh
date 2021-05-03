@@ -68,7 +68,7 @@ if [ "$USE_LINK" = "static" ]; then
 	find build/bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${SAVE_PATH} \;
 else
 	mkdir -p ${SAVE_PATH}/1 ${SAVE_PATH}/2
-	find build/bin/packages -type f \( -iname qt5* -or -iname  *torrent*.ipk \) -exec cp -f {} ${SAVE_PATH}/1 \;
+	find build/bin/packages -type f \( -iname libqt5* -or -iname  *torrent*.ipk \) -exec cp -f {} ${SAVE_PATH}/1 \;
 
 	find build/bin/packages -type f \( \
 		-iname libopenssl1* -or \
