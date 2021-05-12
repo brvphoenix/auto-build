@@ -98,7 +98,7 @@ jobs:
         echo "USE_SDK_VERSION=${version}" >> $GITHUB_ENV
         echo "USE_FEEDS_VERSION=${feeds}" >> $GITHUB_ENV
     - name: Cache SDK
-      uses: actions/cache@v2
+      uses: actions/cache@v2.1.5
       id: cache-sdk
       with:
         path: ./${{ env.USE_SDK_FILE }}
@@ -111,7 +111,7 @@ jobs:
         find ./ -maxdepth 1 -type d -iname 'openwrt-sdk*' -exec mv {} build \;
         rm -rf build/dl build/feeds
     - name: Cache Source
-      uses: actions/cache@v2
+      uses: actions/cache@v2.1.5
       with:
         path: |
           build/dl
