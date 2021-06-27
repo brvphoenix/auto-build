@@ -19,7 +19,7 @@ jobs:
       USE_CHOICE: x86_64
     steps:
     - name: Clone Current Repository
-      uses: actions/checkout@master
+      uses: actions/checkout@v2
     - name: Install Dependencies
       run: |
         sudo -E apt-get update
@@ -90,10 +90,3 @@ jobs:
         restore-keys: |
           source-dynamic-
           source-
-    - name: Clone Source
-      uses: actions/checkout@master
-      with:
-        ref: ${{env.USE_BRANCH}}
-        repository: brvphoenix/SomePackages
-        token: ${{ secrets.SUPER_TOKEN }}
-        path: SomePackages

@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Clone Current Repository
-      uses: actions/checkout@master
+      uses: actions/checkout@v2
     - name: Create Release
       env:
         GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
@@ -48,7 +48,7 @@ jobs:
             runtime_test: true
     steps:
     - name: Clone Current Repository
-      uses: actions/checkout@master
+      uses: actions/checkout@v2
     - name: Install Dependencies
       run: |
         sudo -E apt-get update
@@ -121,7 +121,7 @@ jobs:
           source-${{matrix.link}}-
           source-
     - name: Clone Source
-      uses: actions/checkout@master
+      uses: actions/checkout@v2
       with:
         ref: ${{env.USE_BRANCH}}
         repository: brvphoenix/SomePackages
@@ -134,7 +134,7 @@ jobs:
         build/scripts/dl_cleanup.py build/dl 2>&1 >/dev/null
         rm build/dl/libtorrent-rasterbar-RC_1_2.tar.gz
     - name: Upload the Logs
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@v2
       with:
         name: ${{matrix.arch}}-${{matrix.link}}-log
         path: ./${{matrix.arch}}-${{matrix.link}}.log.tar.xz
@@ -166,7 +166,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Clone Current Repository
-      uses: actions/checkout@master
+      uses: actions/checkout@v2
     - name: Edit Release Status
       env:
         GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
