@@ -1,12 +1,102 @@
-name: Auto-Release
+name: CI
 
 on:
   push:
+    branches:
+      - master
     tags:
       - 'v*'
+  pull_request:
+    branches:
+      - master
 
 jobs:
+  check:
+    name: check the workflows and cache the source
+    if: ${{ github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      USE_CHOICE: x86_64
+    steps:
+    - name: Clone Current Repository
+      uses: actions/checkout@v2
+    - name: Install Dependencies
+      run: |
+        sudo -E apt-get update
+        sudo -E apt-get -y install flex gawk git jq wget
+    - name: Initialize Environment
+      run: |
+        USE_BRANCH=$(jq -r .qbt.USE_BRANCH dynamic.json)
+        vars="USE_PROTOCOL USE_DOMAIN USE_RELEASE USE_VERSION"
+        for i in $vars; do
+          eval "${i}=$(jq -r .openwrt.${i} dynamic.json)"
+        done
+
+        vars="USE_GCC USE_TARGET USE_SUBTARGET USE_UNIQUE USE_EABI"
+        for i in $vars; do
+          eval "${i}=$(jq -r .openwrt[\"${{env.USE_CHOICE}}\"].${i} dynamic.json)"
+        done
+
+        USE_SOURCE_URL=${USE_PROTOCOL}://${USE_DOMAIN}/${USE_RELEASE}
+        SDK_FILE=openwrt-sdk
+
+        [ "${USE_RELEASE}" = "releases" ] && {
+          USE_SOURCE_URL=${USE_SOURCE_URL}/${USE_VERSION}
+          SDK_FILE=${SDK_FILE}-${USE_VERSION}
+        }
+
+        SDK_FILE=${SDK_FILE}-${USE_TARGET}
+        [ "${USE_UNIQUE}" = "1" ] || SDK_FILE="${SDK_FILE}-${USE_SUBTARGET}"
+
+        SDK_FILE=${SDK_FILE}_${USE_GCC}
+        [ "${USE_EABI}" = "1" ] && SDK_FILE="${SDK_FILE}_eabi"
+
+        SDK_FILE=${SDK_FILE}.Linux-x86_64.tar.xz
+        USE_SOURCE_URL=${USE_SOURCE_URL}/targets/${USE_TARGET}/${USE_SUBTARGET}
+
+        echo "USE_BRANCH=${USE_BRANCH}" >> $GITHUB_ENV
+        echo "USE_TARGET=${USE_TARGET}" >> $GITHUB_ENV
+        echo "USE_SUBTARGET=${USE_SUBTARGET}" >> $GITHUB_ENV
+        echo "USE_SOURCE_URL=${USE_SOURCE_URL}" >> $GITHUB_ENV
+        echo "USE_SDK_FILE=${SDK_FILE}" >> $GITHUB_ENV
+    - name: Check Version
+      run: |
+        curl -O "${{env.USE_SOURCE_URL}}/version.buildinfo"
+        curl -O "${{env.USE_SOURCE_URL}}/feeds.buildinfo"
+        [ -e "version.buildinfo" ] && version="$(echo $(cat version.buildinfo))" || version="${{ github.run_id }}"
+        [ -e "feeds.buildinfo" ] && feeds="$(echo $(md5sum feeds.buildinfo | cut -d ' ' -f 1))" || feeds="${{ github.run_id }}"
+        echo "USE_SDK_VERSION=${version}" >> $GITHUB_ENV
+        echo "USE_FEEDS_VERSION=${feeds}" >> $GITHUB_ENV
+    - name: Cache SDK
+      uses: actions/cache@v2
+      id: cache-sdk
+      with:
+        path: ./${{ env.USE_SDK_FILE }}
+        key: SDK-${{env.USE_CHOICE}}-${{ env.USE_SDK_VERSION }}
+    - if: steps.cache-sdk.outputs.cache-hit != 'true'
+      run: |
+        wget --no-check-certificate ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
+    - run: |
+        tar -xJf ${{ env.USE_SDK_FILE }}
+        find ./ -maxdepth 1 -type d -iname 'openwrt-sdk*' -exec mv {} build \;
+        mv *_make.sh build
+        cd build
+        chmod 755 *_make.sh
+        ./pre_make.sh ${{matrix.link}}
+        make download V=s
+    - name: Cache Source
+      uses: actions/cache@v2
+      with:
+        path: |
+          build/dl
+          build/feeds
+        key: source-dynamic-${{ env.USE_FEEDS_VERSION }}
+        restore-keys: |
+          source-dynamic-
+          source-
   create-release:
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     steps:
     - name: Clone Current Repository
@@ -129,15 +219,23 @@ jobs:
         path: SomePackages
     - name: Build the Binary Files
       run: |
-        chmod 755 generate.sh
-        ./generate.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{matrix.arch}} ${{matrix.link}}
-        build/scripts/dl_cleanup.py build/dl 2>&1 >/dev/null
-        rm build/dl/libtorrent-rasterbar-RC_1_2.tar.gz
-    - name: Upload the Logs
-      uses: actions/upload-artifact@v2
-      with:
-        name: ${{matrix.arch}}-${{matrix.link}}-log
-        path: ./${{matrix.arch}}-${{matrix.link}}.log.tar.xz
+        find ./SomePackages/qbittorrent -mindepth 1 -maxdepth 1 -path ./SomePackages/qbittorrent/CMake -prune -o -type d -exec cp -r {} ./build/package/ \;
+        find build/package -maxdepth 2 -type d -name libtorrent-rasterbar | xargs rm -rf
+        mv ./libtorrent-rasterbar build/package/
+        mv *_make.sh build
+
+        cd build
+        chmod 755 *_make.sh
+        ./pre_make.sh ${{matrix.link}}
+        make package/luci-app-qbittorrent/compile V=s -j$(nproc) BUILD_LOG=1
+    - name: Pack all the flies
+      if: always()
+      run: |
+        cd build
+        XZ_OPT=-9 tar -cJf ../${{matrix.arch}}-${{matrix.link}}.log.tar.xz logs
+        ./post_make.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{matrix.arch}} ${{matrix.link}}
+        scripts/dl_cleanup.py dl 2>&1 >/dev/null
+        rm -rf dl/libtorrent-rasterbar-RC_1_2.tar.gz
     - name: Upload Release Asset
       env:
         GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
@@ -145,24 +243,26 @@ jobs:
         [ -n "$(find ${{matrix.arch}}-${{matrix.link}} -type f -iname *qbittorrent*)" ] || exit 1
         tag_name=$(basename ${{github.ref}})
         hub release edit $tag_name -a ./${{matrix.arch}}-${{matrix.link}}.tar.xz -m ""
-
     - name: Register QEMU
       if: ${{ matrix.runtime_test }}
       run: |
         sudo docker run --rm --privileged aptman/qus -s -- -p
-
     - name: Build Docker container
       if: ${{ matrix.runtime_test }}
       run: |
         sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=19.07.7 ./docker
-
     - name: Test via Docker container
       if: ${{ matrix.runtime_test }}
       run: |
         sudo docker run --rm -v $GITHUB_WORKSPACE/${{matrix.arch}}-${{matrix.link}}:/ci -v $GITHUB_WORKSPACE/docker:/docker test-container ${{matrix.arch}}
-
+    - name: Upload the Logs
+      if: always()
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{matrix.arch}}-${{matrix.link}}-log
+        path: ./${{matrix.arch}}-${{matrix.link}}.log.tar.xz
   pre-release:
-    needs: build-matrix
+    needs: [create-release, build-matrix]
     runs-on: ubuntu-latest
     steps:
     - name: Clone Current Repository
