@@ -24,7 +24,7 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo -E apt-get update
-        sudo -E apt-get -y install flex gawk git jq wget
+        sudo -E apt-get -y install flex gawk git jq rsync wget
     - name: Initialize Environment
       run: |
         USE_BRANCH=$(jq -r .qbt.USE_BRANCH dynamic.json)
@@ -33,7 +33,7 @@ jobs:
           eval "${i}=$(jq -r .openwrt.${i} dynamic.json)"
         done
 
-        vars="USE_GCC USE_TARGET USE_SUBTARGET USE_UNIQUE USE_EABI"
+        vars="USE_GCC USE_LIBC USE_TARGET USE_SUBTARGET USE_UNIQUE USE_EABI"
         for i in $vars; do
           eval "${i}=$(jq -r .openwrt[\"${{env.USE_CHOICE}}\"].${i} dynamic.json)"
         done
@@ -49,7 +49,7 @@ jobs:
         SDK_FILE=${SDK_FILE}-${USE_TARGET}
         [ "${USE_UNIQUE}" = "1" ] || SDK_FILE="${SDK_FILE}-${USE_SUBTARGET}"
 
-        SDK_FILE=${SDK_FILE}_${USE_GCC}
+        SDK_FILE=${SDK_FILE}_gcc-${USE_GCC}_$( [ "${USE_LIBC}" = "null" ] && echo musl || echo ${USE_LIBC} )
         [ "${USE_EABI}" = "1" ] && SDK_FILE="${SDK_FILE}_eabi"
 
         SDK_FILE=${SDK_FILE}.Linux-x86_64.tar.xz
@@ -84,7 +84,6 @@ jobs:
         cd build
         chmod 755 *_make.sh
         ./pre_make.sh ${{matrix.link}}
-        make download V=s
     - name: Cache Source
       uses: actions/cache@v2
       with:
@@ -152,7 +151,7 @@ jobs:
           eval "${i}=$(jq -r .openwrt.${i} ${{matrix.link}}.json)"
         done
 
-        vars="USE_GCC USE_TARGET USE_SUBTARGET USE_UNIQUE USE_EABI"
+        vars="USE_GCC USE_LIBC USE_TARGET USE_SUBTARGET USE_UNIQUE USE_EABI"
         for i in $vars; do
           eval "${i}=$(jq -r .openwrt[\"${{matrix.arch}}\"].${i} ${{matrix.link}}.json)"
         done
@@ -168,7 +167,7 @@ jobs:
         SDK_FILE=${SDK_FILE}-${USE_TARGET}
         [ "${USE_UNIQUE}" = "1" ] || SDK_FILE="${SDK_FILE}-${USE_SUBTARGET}"
 
-        SDK_FILE=${SDK_FILE}_${USE_GCC}
+        SDK_FILE=${SDK_FILE}_gcc-${USE_GCC}_$( [ "${USE_LIBC}" = "null" ] && echo musl || echo ${USE_LIBC} )
         [ "${USE_EABI}" = "1" ] && SDK_FILE="${SDK_FILE}_eabi"
 
         SDK_FILE=${SDK_FILE}.Linux-x86_64.tar.xz
@@ -221,7 +220,7 @@ jobs:
       run: |
         find ./SomePackages/qbittorrent -mindepth 1 -maxdepth 1 -path ./SomePackages/qbittorrent/CMake -prune -o -type d -exec cp -r {} ./build/package/ \;
         find build/package -maxdepth 2 -type d -name libtorrent-rasterbar | xargs rm -rf
-        mv ./libtorrent-rasterbar build/package/
+        rsync -a rsync/* build
         mv *_make.sh build
 
         cd build
@@ -232,7 +231,7 @@ jobs:
       if: always()
       run: |
         cd build
-        XZ_OPT=-9 tar -cJf ../${{matrix.arch}}-${{matrix.link}}.log.tar.xz logs
+        XZ_OPT=-9 tar -cJvf ../${{matrix.arch}}-${{matrix.link}}.log.tar.xz logs
         ./post_make.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{matrix.arch}} ${{matrix.link}}
         scripts/dl_cleanup.py dl 2>&1 >/dev/null
         rm -rf dl/libtorrent-rasterbar-RC_1_2.tar.gz
@@ -250,7 +249,7 @@ jobs:
     - name: Build Docker container
       if: ${{ matrix.runtime_test }}
       run: |
-        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=19.07.7 ./docker
+        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=19.07.8 ./docker
     - name: Test via Docker container
       if: ${{ matrix.runtime_test }}
       run: |
@@ -261,6 +260,7 @@ jobs:
       with:
         name: ${{matrix.arch}}-${{matrix.link}}-log
         path: ./${{matrix.arch}}-${{matrix.link}}.log.tar.xz
+        if-no-files-found: error
   pre-release:
     needs: [create-release, build-matrix]
     runs-on: ubuntu-latest

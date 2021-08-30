@@ -1,0 +1,241 @@
+From 2e8e2b04a141a8858726fc13714e2cb03956809c Mon Sep 17 00:00:00 2001
+From: zhuangzi926 <30551102+zhuangzi926@users.noreply.github.com>
+Date: Sun, 23 May 2021 14:26:54 +0800
+Subject: [PATCH] Announce to all trackers if IP changed (#15001)
+
+Closes #14545.
+---
+ src/base/bittorrent/session.cpp              | 44 ++++++++++++++++----
+ src/base/bittorrent/session.h                |  6 +++
+ src/gui/advancedsettings.cpp                 |  6 +++
+ src/gui/advancedsettings.h                   |  2 +-
+ src/webui/api/appcontroller.cpp              |  5 +++
+ src/webui/www/private/views/preferences.html | 10 +++++
+ 6 files changed, 64 insertions(+), 9 deletions(-)
+
+--- a/src/base/bittorrent/session.cpp
++++ b/src/base/bittorrent/session.cpp
+@@ -393,6 +393,7 @@ Session::Session(QObject *parent)
+     , m_includeOverheadInLimits(BITTORRENT_SESSION_KEY("IncludeOverheadInLimits"), false)
+     , m_announceIP(BITTORRENT_SESSION_KEY("AnnounceIP"))
+     , m_maxConcurrentHTTPAnnounces(BITTORRENT_SESSION_KEY("MaxConcurrentHTTPAnnounces"), 50)
++    , m_isReannounceWhenAddressChangedEnabled(BITTORRENT_SESSION_KEY("ReannounceWhenAddressChanged"), false)
+     , m_stopTrackerTimeout(BITTORRENT_SESSION_KEY("StopTrackerTimeout"), 5)
+     , m_maxConnections(BITTORRENT_SESSION_KEY("MaxConnections"), 500, lowerLimited(0, -1))
+     , m_maxUploads(BITTORRENT_SESSION_KEY("MaxUploads"), 20, lowerLimited(0, -1))
+@@ -1040,9 +1041,9 @@ void Session::adjustLimits()
+ 
+ void Session::applyBandwidthLimits()
+ {
+-        lt::settings_pack settingsPack = m_nativeSession->get_settings();
+-        applyBandwidthLimits(settingsPack);
+-        m_nativeSession->apply_settings(settingsPack);
++    lt::settings_pack settingsPack = m_nativeSession->get_settings();
++    applyBandwidthLimits(settingsPack);
++    m_nativeSession->apply_settings(settingsPack);
+ }
+ 
+ void Session::configure()
+@@ -2785,6 +2786,9 @@ void Session::setPort(const int port)
+     {
+         m_port = port;
+         configureListeningInterface();
++
++        if (isReannounceWhenAddressChangedEnabled())
++            reannounceToAllTrackers();
+     }
+ }
+ 
+@@ -3065,7 +3069,6 @@ void Session::setMaxConnectionsPerTorren
+         // Apply this to all session torrents
+         for (const lt::torrent_handle &handle : m_nativeSession->get_torrents())
+         {
+-            if (!handle.is_valid()) continue;
+             try
+             {
+                 handle.set_max_connections(max);
+@@ -3090,7 +3093,6 @@ void Session::setMaxUploadsPerTorrent(in
+         // Apply this to all session torrents
+         for (const lt::torrent_handle &handle : m_nativeSession->get_torrents())
+         {
+-            if (!handle.is_valid()) continue;
+             try
+             {
+                 handle.set_max_uploads(max);
+@@ -3621,6 +3623,25 @@ void Session::setMaxConcurrentHTTPAnnoun
+     configureDeferred();
+ }
+ 
++bool Session::isReannounceWhenAddressChangedEnabled() const
++{
++    return m_isReannounceWhenAddressChangedEnabled;
++}
++
++void Session::setReannounceWhenAddressChangedEnabled(const bool enabled)
++{
++    if (enabled == m_isReannounceWhenAddressChangedEnabled)
++        return;
++
++    m_isReannounceWhenAddressChangedEnabled = enabled;
++}
++
++void Session::reannounceToAllTrackers() const
++{
++    for (const lt::torrent_handle &torrent : m_nativeSession->get_torrents())
++        torrent.force_reannounce(0, -1, lt::torrent_handle::ignore_min_interval);
++}
++
+ int Session::stopTrackerTimeout() const
+ {
+     return m_stopTrackerTimeout;
+@@ -4858,8 +4879,7 @@ void Session::handleListenSucceededAlert
+             .arg(toString(p->address), proto, QString::number(p->port)), Log::INFO);
+ 
+     // Force reannounce on all torrents because some trackers blacklist some ports
+-    for (const lt::torrent_handle &torrent : m_nativeSession->get_torrents())
+-        torrent.force_reannounce();
++    reannounceToAllTrackers();
+ }
+ 
+ void Session::handleListenFailedAlert(const lt::listen_failed_alert *p)
+@@ -4873,8 +4893,16 @@ void Session::handleListenFailedAlert(co
+ 
+ void Session::handleExternalIPAlert(const lt::external_ip_alert *p)
+ {
++    const QString externalIP {toString(p->external_address)};
+     LogMsg(tr("Detected external IP: %1", "e.g. Detected external IP: 1.1.1.1")
+-        .arg(toString(p->external_address)), Log::INFO);
++        .arg(externalIP), Log::INFO);
++
++    if (m_lastExternalIP != externalIP)
++    {
++        if (isReannounceWhenAddressChangedEnabled() && !m_lastExternalIP.isEmpty())
++            reannounceToAllTrackers();
++        m_lastExternalIP = externalIP;
++    }
+ }
+ 
+ void Session::handleSessionStatsAlert(const lt::session_stats_alert *p)
+--- a/src/base/bittorrent/session.h
++++ b/src/base/bittorrent/session.h
+@@ -396,6 +396,9 @@ namespace BitTorrent
+         void setAnnounceIP(const QString &ip);
+         int maxConcurrentHTTPAnnounces() const;
+         void setMaxConcurrentHTTPAnnounces(int value);
++        bool isReannounceWhenAddressChangedEnabled() const;
++        void setReannounceWhenAddressChangedEnabled(bool enabled);
++        void reannounceToAllTrackers() const;
+         int stopTrackerTimeout() const;
+         void setStopTrackerTimeout(int value);
+         int maxConnections() const;
+@@ -687,6 +690,7 @@ namespace BitTorrent
+         CachedSettingValue<bool> m_includeOverheadInLimits;
+         CachedSettingValue<QString> m_announceIP;
+         CachedSettingValue<int> m_maxConcurrentHTTPAnnounces;
++        CachedSettingValue<bool> m_isReannounceWhenAddressChangedEnabled;
+         CachedSettingValue<int> m_stopTrackerTimeout;
+         CachedSettingValue<int> m_maxConnections;
+         CachedSettingValue<int> m_maxUploads;
+@@ -797,6 +801,8 @@ namespace BitTorrent
+ 
+         QList<MoveStorageJob> m_moveStorageQueue;
+ 
++        QString m_lastExternalIP;
++
+         static Session *m_instance;
+     };
+ }
+--- a/src/gui/advancedsettings.cpp
++++ b/src/gui/advancedsettings.cpp
+@@ -79,6 +79,7 @@ namespace
+         PROGRAM_NOTIFICATIONS,
+         TORRENT_ADDED_NOTIFICATIONS,
+         CONFIRM_REMOVE_ALL_TAGS,
++        REANNOUNCE_WHEN_ADDRESS_CHANGED,
+         DOWNLOAD_TRACKER_FAVICON,
+         SAVE_PATH_HISTORY_LENGTH,
+         ENABLE_SPEED_WIDGET,
+@@ -276,6 +277,8 @@ void AdvancedSettings::saveAdvancedSetti
+     MainWindow *const mainWindow = static_cast<Application*>(QCoreApplication::instance())->mainWindow();
+     mainWindow->setNotificationsEnabled(m_checkBoxProgramNotifications.isChecked());
+     mainWindow->setTorrentAddedNotificationsEnabled(m_checkBoxTorrentAddedNotifications.isChecked());
++    // Reannounce to all trackers when ip/port changed
++    session->setReannounceWhenAddressChangedEnabled(m_checkBoxReannounceWhenAddressChanged.isChecked());
+     // Misc GUI properties
+     mainWindow->setDownloadTrackerFavicon(m_checkBoxTrackerFavicon.isChecked());
+     AddNewTorrentDialog::setSavePathHistoryLength(m_spinBoxSavePathHistoryLength.value());
+@@ -648,6 +651,9 @@ void AdvancedSettings::loadAdvancedSetti
+     // Torrent added notifications
+     m_checkBoxTorrentAddedNotifications.setChecked(mainWindow->isTorrentAddedNotificationsEnabled());
+     addRow(TORRENT_ADDED_NOTIFICATIONS, tr("Display notifications for added torrents"), &m_checkBoxTorrentAddedNotifications);
++    // Reannounce to all trackers when ip/port changed
++    m_checkBoxReannounceWhenAddressChanged.setChecked(session->isReannounceWhenAddressChangedEnabled());
++    addRow(REANNOUNCE_WHEN_ADDRESS_CHANGED, tr("Reannounce to all trackers when IP or port changed"), &m_checkBoxReannounceWhenAddressChanged);
+     // Download tracker's favicon
+     m_checkBoxTrackerFavicon.setChecked(mainWindow->isDownloadTrackerFavicon());
+     addRow(DOWNLOAD_TRACKER_FAVICON, tr("Download tracker's favicon"), &m_checkBoxTrackerFavicon);
+--- a/src/gui/advancedsettings.h
++++ b/src/gui/advancedsettings.h
+@@ -66,7 +66,7 @@ private:
+              m_spinBoxSendBufferWatermarkFactor, m_spinBoxSocketBacklogSize, m_spinBoxMaxConcurrentHTTPAnnounces, m_spinBoxStopTrackerTimeout,
+              m_spinBoxSavePathHistoryLength, m_spinBoxPeerTurnover, m_spinBoxPeerTurnoverCutoff, m_spinBoxPeerTurnoverInterval;
+     QCheckBox m_checkBoxOsCache, m_checkBoxRecheckCompleted, m_checkBoxResolveCountries, m_checkBoxResolveHosts,
+-              m_checkBoxProgramNotifications, m_checkBoxTorrentAddedNotifications, m_checkBoxTrackerFavicon, m_checkBoxTrackerStatus,
++              m_checkBoxProgramNotifications, m_checkBoxTorrentAddedNotifications, m_checkBoxReannounceWhenAddressChanged, m_checkBoxTrackerFavicon, m_checkBoxTrackerStatus,
+               m_checkBoxConfirmTorrentRecheck, m_checkBoxConfirmRemoveAllTags, m_checkBoxAnnounceAllTrackers, m_checkBoxAnnounceAllTiers,
+               m_checkBoxMultiConnectionsPerIp, m_checkBoxValidateHTTPSTrackerCertificate, m_checkBoxSSRFMitigation, m_checkBoxBlockPeersOnPrivilegedPorts, m_checkBoxPieceExtentAffinity,
+               m_checkBoxSuggestMode, m_checkBoxSpeedWidgetEnabled, m_checkBoxIDNSupport;
+--- a/src/webui/api/appcontroller.cpp
++++ b/src/webui/api/appcontroller.cpp
+@@ -286,6 +286,8 @@ void AppController::preferencesAction()
+     data["recheck_completed_torrents"] = pref->recheckTorrentsOnCompletion();
+     // Resolve peer countries
+     data["resolve_peer_countries"] = pref->resolvePeerCountries();
++    // Reannounce to all trackers when ip/port changed
++    data["reannounce_when_address_changed"] = session->isReannounceWhenAddressChangedEnabled();
+ 
+     // libtorrent preferences
+     // Async IO threads
+@@ -735,6 +737,9 @@ void AppController::setPreferencesAction
+     // Resolve peer countries
+     if (hasKey("resolve_peer_countries"))
+         pref->resolvePeerCountries(it.value().toBool());
++    // Reannounce to all trackers when ip/port changed
++    if (hasKey("reannounce_when_address_changed"))
++        session->setReannounceWhenAddressChangedEnabled(it.value().toBool());
+ 
+     // libtorrent preferences
+     // Async IO threads
+--- a/src/webui/www/private/views/preferences.html
++++ b/src/webui/www/private/views/preferences.html
+@@ -873,6 +873,14 @@
+             </tr>
+             <tr>
+                 <td>
++                    <label for="reannounceWhenAddressChanged">QBT_TR(Reannounce to all trackers when IP or port changed:)QBT_TR[CONTEXT=OptionsDialog]</label>
++                </td>
++                <td>
++                    <input type="checkbox" id="reannounceWhenAddressChanged" />
++                </td>
++            </tr>
++            <tr>
++                <td>
+                     <label for="enableEmbeddedTracker">QBT_TR(Enable embedded tracker:)QBT_TR[CONTEXT=OptionsDialog]</label>
+                 </td>
+                 <td>
+@@ -1839,6 +1847,7 @@
+                         $('saveResumeDataInterval').setProperty('value', pref.save_resume_data_interval);
+                         $('recheckTorrentsOnCompletion').setProperty('checked', pref.recheck_completed_torrents);
+                         $('resolvePeerCountries').setProperty('checked', pref.resolve_peer_countries);
++                        $('reannounceWhenAddressChanged').setProperty('checked', pref.reannounce_when_address_changed);
+                         // libtorrent section
+                         $('asyncIOThreads').setProperty('value', pref.async_io_threads);
+                         $('hashingThreads').setProperty('value', pref.hashing_threads);
+@@ -2228,6 +2237,7 @@
+             settings.set('save_resume_data_interval', $('saveResumeDataInterval').getProperty('value'));
+             settings.set('recheck_completed_torrents', $('recheckTorrentsOnCompletion').getProperty('checked'));
+             settings.set('resolve_peer_countries', $('resolvePeerCountries').getProperty('checked'));
++            settings.set('reannounce_when_address_changed', $('reannounceWhenAddressChanged').getProperty('checked'));
+ 
+             // libtorrent section
+             settings.set('async_io_threads', $('asyncIOThreads').getProperty('value'));
