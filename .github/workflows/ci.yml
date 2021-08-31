@@ -80,10 +80,6 @@ jobs:
     - run: |
         tar -xJf ${{ env.USE_SDK_FILE }}
         find ./ -maxdepth 1 -type d -iname 'openwrt-sdk*' -exec mv {} build \;
-        mv *_make.sh build
-        cd build
-        chmod 755 *_make.sh
-        ./pre_make.sh ${{matrix.link}}
     - name: Cache Source
       uses: actions/cache@v2
       with:
@@ -217,22 +213,101 @@ jobs:
         token: ${{ secrets.SUPER_TOKEN }}
         path: SomePackages
     - name: Build the Binary Files
+      working-directory: ./build
       run: |
-        find ./SomePackages/qbittorrent -mindepth 1 -maxdepth 1 -path ./SomePackages/qbittorrent/CMake -prune -o -type d -exec cp -r {} ./build/package/ \;
-        find build/package -maxdepth 2 -type d -name libtorrent-rasterbar | xargs rm -rf
-        rsync -a rsync/* build
-        mv *_make.sh build
+        # Restore the modified feeds sources
+        for d in $([ -d feeds ] && ls feeds | cut -d . -f 1 | sort | uniq); do
+        	cd feeds/$d;
+        	git checkout .;
+        	cd ../..;
+        done
 
-        cd build
-        chmod 755 *_make.sh
-        ./pre_make.sh ${{matrix.link}}
+        cp -r ../SomePackages/qbittorrent/* package
+        rm -rf package/libtorrent-rasterbar package/CMake
+        rsync -a ../rsync/* ./
+
+        # Make qmake compile in parallel (should be deleted when update to Qt6)
+        mv ../test.mk package/qtbase
+        sed -i '/define Build\/Compile/i include ./test.mk' package/qtbase/Makefile
+
+        # use the github source
+        sed -i 's/git\.openwrt\.org\/openwrt\/openwrt/github\.com\/openwrt\/openwrt/g' ./feeds.conf.default
+        sed -i 's/git\.openwrt\.org\/feed\/packages/github\.com\/openwrt\/packages/g' ./feeds.conf.default
+        sed -i 's/git\.openwrt\.org\/project\/luci/github\.com\/openwrt\/luci/g' ./feeds.conf.default
+        sed -i 's/git\.openwrt\.org\/feed\/telephony/github\.com\/openwrt\/telephony/g' ./feeds.conf.default
+
+        # Use the stable release snapshot feeds sources (should upgrade if update the release version).
+        [ "${{matrix.link}}" = "dynamic" ] && sed -i 's/\(\.git\)\^\w\+/\1\;openwrt-19.07/g' ./feeds.conf.default
+
+        # Sync with the source
+        ./scripts/feeds update -a
+        rm -rf feeds/packages/libs/libtorrent-rasterbar
+        ./scripts/feeds install -a
+
+        cat > .config <<EOF
+        # CONFIG_ALL_KMODS is not set
+        # CONFIG_ALL is not set
+        CONFIG_PACKAGE_luci-app-qbittorrent=y
+        CONFIG_QBT_REMOVE_GUI_TR=y
+        CONFIG_QBT_LANG-zh=y
+        CONFIG_LUCI_LANG_zh_Hans=y
+        EOF
+
+        [ "${{matrix.link}}" = "static" ] && {
+        	cat >> .config <<-EOF
+        	CONFIG_PACKAGE_libpcre2-16=y
+        	CONFIG_PACKAGE_boost=y
+        	CONFIG_PACKAGE_boost-system=y
+        	CONFIG_PACKAGE_libopenssl=y
+        	CONFIG_QT5_OPENSSL_LINKED=y
+        	CONFIG_QT5_STATIC=y
+        	# CONFIG_QT5_SYSTEM_DC is not set
+        	CONFIG_QT5_SYSTEM_PCRE2=y
+        	CONFIG_QT5_SYSTEM_ZLIB=y
+        	CONFIG_QBT_STATIC_LINK=y
+        	EOF
+
+        	sed -i '/HOST_FPIC:=-fPIC/aFPIC:=-fPIC' rules.mk
+        	sed -i '/(call BuildPackage,libpcre2)/i Package/libpcre2/install=true\nPackage/libpcre2-16/install=true\nPackage/libpcre2-32/install=true' feeds/packages/libs/pcre2/Makefile
+        	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' feeds/packages/libs/pcre2/Makefile
+        }
+        make defconfig
         make package/luci-app-qbittorrent/compile V=s -j$(nproc) BUILD_LOG=1
     - name: Pack all the flies
       if: always()
       run: |
+        # The save path of the packages
+        SAVE_PATH=${{matrix.arch}}-${{matrix.link}}
+        mkdir -p ${SAVE_PATH}
+
+        if [ "${{matrix.link}}" = "static" ]; then
+          find build/bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${SAVE_PATH} \;
+        else
+          mkdir -p ${SAVE_PATH}/1 ${SAVE_PATH}/2
+          find build/bin/packages -type f \( -iname libqt5* -or -iname  *torrent*.ipk \) -exec cp -f {} ${SAVE_PATH}/1 \;
+          find build/bin/packages -type f \( \
+            -iname libopenssl1* -or \
+            -iname boost_* -or \
+            -iname boost-system* -or \
+            -iname libdouble-conversion* -or \
+            -iname libpcre2-16* -or \
+            -iname zlib_* \
+          \) -exec cp -f {} ${SAVE_PATH}/2 \;
+          find build/bin/targets -type f -iname libstdcpp* -exec cp -f {} ${SAVE_PATH}/2 \;
+
+          # The libatomic is needed by mips_24kc and mipsel_24kc
+          [ "${{matrix.arch}}" = "mips_24kc" ] || [ "${{matrix.arch}}" = "mipsel_24kc" ] && \
+            find build/bin/targets -type f -iname libatomic* -exec cp -f {} ${SAVE_PATH}/2 \;
+        fi
+
+        tar -cJf ${SAVE_PATH}.tar.xz ${SAVE_PATH}
+
+        # Compress the logs
         cd build
+        # Compress the log files
         XZ_OPT=-9 tar -cJvf ../${{matrix.arch}}-${{matrix.link}}.log.tar.xz logs
-        ./post_make.sh ${{env.USE_TARGET}} ${{env.USE_SUBTARGET}} ${{matrix.arch}} ${{matrix.link}}
+
+        # Clean up the obsolete packages
         scripts/dl_cleanup.py dl 2>&1 >/dev/null
         rm -rf dl/libtorrent-rasterbar-RC_1_2.tar.gz
     - name: Upload Release Asset
