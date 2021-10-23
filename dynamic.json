@@ -1,6 +1,6 @@
 {
 	"qbt": {
-		"USE_BRANCH": "master"
+		"USE_BRANCH": "qt56"
 	},
 	"openwrt": {
 		"USE_PROTOCOL": "https",

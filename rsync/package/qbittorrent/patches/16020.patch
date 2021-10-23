@@ -1,0 +1,52 @@
+From 1b3f4088e1884f8861c49e34395f5ccccdc4c214 Mon Sep 17 00:00:00 2001
+From: Chocobo1 <Chocobo1@users.noreply.github.com>
+Date: Sat, 8 Jan 2022 23:20:34 +0800
+Subject: [PATCH] WebAPI: fix wrong key used for categories
+
+Regression from 1c0f8b4289b8d298041fe195cdc24f793dce4df5.
+Closes #15969.
+---
+ src/webui/api/synccontroller.cpp     | 2 ++
+ src/webui/api/torrentscontroller.cpp | 2 ++
+ src/webui/webapplication.h           | 2 +-
+ 3 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/webui/api/synccontroller.cpp b/src/webui/api/synccontroller.cpp
+index 7a5be46eba5..9171c2b41e2 100644
+--- a/src/webui/api/synccontroller.cpp
++++ b/src/webui/api/synccontroller.cpp
+@@ -503,6 +503,8 @@ void SyncController::maindataAction()
+     {
+         const BitTorrent::CategoryOptions categoryOptions = session->categoryOptions(categoryName);
+         QJsonObject category = categoryOptions.toJSON();
++        // adjust it to be compatible with exisitng WebAPI
++        category[QLatin1String("savePath")] = category.take(QLatin1String("save_path"));
+         category.insert(QLatin1String("name"), categoryName);
+         categories[categoryName] = category.toVariantMap();
+     }
+diff --git a/src/webui/api/torrentscontroller.cpp b/src/webui/api/torrentscontroller.cpp
+index 46dc235281d..1449ab1cc1a 100644
+--- a/src/webui/api/torrentscontroller.cpp
++++ b/src/webui/api/torrentscontroller.cpp
+@@ -1285,6 +1285,8 @@ void TorrentsController::categoriesAction()
+     {
+         const BitTorrent::CategoryOptions categoryOptions = session->categoryOptions(categoryName);
+         QJsonObject category = categoryOptions.toJSON();
++        // adjust it to be compatible with exisitng WebAPI
++        category[QLatin1String("savePath")] = category.take(QLatin1String("save_path"));
+         category.insert(QLatin1String("name"), categoryName);
+         categories[categoryName] = category;
+     }
+diff --git a/src/webui/webapplication.h b/src/webui/webapplication.h
+index 339d805a518..a6514fcaa47 100644
+--- a/src/webui/webapplication.h
++++ b/src/webui/webapplication.h
+@@ -43,7 +43,7 @@
+ #include "base/utils/net.h"
+ #include "base/utils/version.h"
+ 
+-inline const Utils::Version<int, 3, 2> API_VERSION {2, 8, 4};
++inline const Utils::Version<int, 3, 2> API_VERSION {2, 8, 5};
+ 
+ class APIController;
+ class WebApplication;
