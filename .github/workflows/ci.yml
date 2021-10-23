@@ -103,34 +103,26 @@ jobs:
         tag_name=$(basename ${{github.ref}})
         hub release create -d -t master -m "Release $tag_name" $tag_name
   build-matrix:
-    name: build [${{matrix.link}}, ${{matrix.arch}}]
+    name: ${{matrix.link}}, ${{matrix.arch}}, qt${{matrix.qt}}, libtorrent_${{matrix.libtorrent}}
     needs: create-release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        arch: [mips_24kc, mipsel_24kc, arm_cortex-a9, arm_cortex-a7_neon-vfpv4, arm_cortex-a9_vfpv3, arm_cortex-a15_neon-vfpv4, aarch64_cortex-a53, x86_64]
         link: [dynamic, static]
-        arch: [mips_24kc, mipsel_24kc, arm_cortex-a9, arm_cortex-a7_neon-vfpv4, arm_cortex-a9_vfpv3]
-        runtime_test: [false]
-        include:
-          - arch: aarch64_cortex-a53
-            link: dynamic
-            runtime_test: true
-          - arch: aarch64_cortex-a53
-            link: static
-            runtime_test: true
-          - arch: arm_cortex-a15_neon-vfpv4
-            link: dynamic
-            runtime_test: true
-          - arch: arm_cortex-a15_neon-vfpv4
-            link: static
-            runtime_test: true
-          - arch: x86_64
-            link: dynamic
-            runtime_test: true
-          - arch: x86_64
-            link: static
-            runtime_test: true
+        libtorrent: [1_2, 2_0]
+        qt: [5, 6]
+        runtime_test: [false, true]
+        exclude:
+          - {arch: mips_24kc, runtime_test: true}
+          - {arch: mipsel_24kc, runtime_test: true}
+          - {arch: arm_cortex-a9, runtime_test: true}
+          - {arch: arm_cortex-a7_neon-vfpv4, runtime_test: true}
+          - {arch: arm_cortex-a9_vfpv3, runtime_test: true}
+          - {arch: arm_cortex-a15_neon-vfpv4, runtime_test: false}
+          - {arch: aarch64_cortex-a53, runtime_test: false}
+          - {arch: x86_64, runtime_test: false}
     steps:
     - name: Clone Current Repository
       uses: actions/checkout@v2
@@ -226,12 +218,22 @@ jobs:
         	cd ../..;
         done
 
-        cp -r ../SomePackages/qbittorrent/* package
-        rm -rf package/libtorrent-rasterbar package/CMake
+        mkdir -p package
+        cp -r ../SomePackages/qbittorrent/luci-app-qbittorrent package
+        cp -r ../SomePackages/qbittorrent/qt${{matrix.qt}}/* package
+        # Use the libtorrent official latest commit
+        # cp -r ../SomePackages/qbittorrent/libtorrent-rasterbar_${{matrix.libtorrent}}/* package
+        cp -r ../auto-build/rsync/package/libtorrent-rasterbar_${{matrix.libtorrent}} package/libtorrent-rasterbar
+        rm -r ../auto-build/rsync/package/libtorrent-rasterbar_*
         rsync -a ../auto-build/rsync/* ./
 
+        # Compatible with libtorrent RC_1_2
+        if [ "${{matrix.libtorrent}}" = "1_2" ] || [ "${{matrix.qt}}" = "5" ]; then
+        	sed -i 's/\(target_link_libraries(qbt_app PUBLIC "\)/\1-liconv /g' package/qbittorrent/patches/0012-fix-static-compile.patch
+        	sed -i 's/\(include \$(INCLUDE_DIR)\/cmake\.mk\)$/\1\ninclude \$(INCLUDE_DIR)\/nls\.mk/g' package/qbittorrent/Makefile
+        fi
         # Make qmake compile in parallel (should be deleted when update to Qt6)
-        mv ../test.mk package/qtbase
+        mv ../auto-build/test.mk package/qtbase
         sed -i '/define Build\/Compile/i include ./test.mk' package/qtbase/Makefile
 
         # use the github source
@@ -261,21 +263,23 @@ jobs:
 
         [ "${{matrix.link}}" = "static" ] && {
         	cat >> .config <<-EOF
-        	CONFIG_PACKAGE_libpcre2-16=y
-        	CONFIG_PACKAGE_boost=y
-        	CONFIG_PACKAGE_boost-system=y
-        	CONFIG_PACKAGE_libopenssl=y
-        	CONFIG_QT5_OPENSSL_LINKED=y
-        	CONFIG_QT5_STATIC=y
-        	# CONFIG_QT5_SYSTEM_DC is not set
-        	CONFIG_QT5_SYSTEM_PCRE2=y
-        	CONFIG_QT5_SYSTEM_ZLIB=y
-        	CONFIG_QBT_STATIC_LINK=y
+        		CONFIG_PACKAGE_libpcre2-16=y
+        		CONFIG_PACKAGE_boost=y
+        		CONFIG_PACKAGE_boost-system=y
+        		CONFIG_PACKAGE_libopenssl=y
+        		CONFIG_QT${{matrix.qt}}_OPENSSL_LINKED=y
+        		CONFIG_QT${{matrix.qt}}_STATIC=y
+        		# CONFIG_QT${{matrix.qt}}_SYSTEM_DC is not set
+        		CONFIG_QT${{matrix.qt}}_SYSTEM_PCRE2=y
+        		CONFIG_QT${{matrix.qt}}_SYSTEM_ZLIB=y
+        		CONFIG_QBT_STATIC_LINK=y
         	EOF
 
         	sed -i '/HOST_FPIC:=-fPIC/aFPIC:=-fPIC' rules.mk
-        	sed -i '/(call BuildPackage,libpcre2)/i Package/libpcre2/install=true\nPackage/libpcre2-16/install=true\nPackage/libpcre2-32/install=true' feeds/packages/libs/pcre2/Makefile
         	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' feeds/packages/libs/pcre2/Makefile
+        	sed -i '/(call BuildPackage,libpcre2)/i Package/libpcre2/install=true\nPackage/libpcre2-16/install=true\nPackage/libpcre2-32/install=true' feeds/packages/libs/pcre2/Makefile
+        	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' package/libtorrent-rasterbar/Makefile
+        	sed -i '/^define Package\/libtorrent-rasterbar$/{:a;N;/endef/!ba;s/\(endef\)/  BUILDONLY:=1\n\1/g}' package/libtorrent-rasterbar/Makefile
         }
         make defconfig
         make package/luci-app-qbittorrent/compile V=s -j$(nproc) BUILD_LOG=1
@@ -283,14 +287,14 @@ jobs:
       if: always()
       run: |
         # The save path of the packages
-        SAVE_PATH=${{matrix.arch}}-${{matrix.link}}
+        SAVE_PATH=${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}}
         mkdir -p ${SAVE_PATH}
 
         if [ "${{matrix.link}}" = "static" ]; then
           find build/bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${SAVE_PATH} \;
         else
           mkdir -p ${SAVE_PATH}/1 ${SAVE_PATH}/2
-          find build/bin/packages -type f \( -iname libqt5* -or -iname  *torrent*.ipk \) -exec cp -f {} ${SAVE_PATH}/1 \;
+          find build/bin/packages -type f \( -iname libqt${{matrix.qt}}* -or -iname  *torrent*.ipk \) -exec cp -f {} ${SAVE_PATH}/1 \;
           find build/bin/packages -type f \( \
             -iname libopenssl1* -or \
             -iname boost_* -or \
@@ -323,14 +327,15 @@ jobs:
 
         # Clean up the obsolete packages
         scripts/dl_cleanup.py dl 2>&1 >/dev/null
-        rm -rf dl/libtorrent-rasterbar-RC_1_2.tar.gz
+        rm -rf dl/libtorrent-rasterbar-RC_${{matrix.libtorrent}}.tar.gz
     - name: Upload Release Asset
       env:
         GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
       run: |
-        [ -n "$(find ${{matrix.arch}}-${{matrix.link}} -type f -iname *qbittorrent*)" ] || exit 1
+        [ -n "$(find ${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}} -type f -iname *qbittorrent*)" ] || exit 1
         tag_name=$(basename ${{github.ref}})
-        hub release edit $tag_name -a ./${{matrix.arch}}-${{matrix.link}}.tar.xz -m ""
+        cd auto-build
+        hub release edit $tag_name -a ../${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}}.tar.xz -m ""
     - name: Register QEMU
       if: ${{ matrix.runtime_test }}
       run: |
@@ -342,13 +347,13 @@ jobs:
     - name: Test via Docker container
       if: ${{ matrix.runtime_test }}
       run: |
-        sudo docker run --rm -v $GITHUB_WORKSPACE/${{matrix.arch}}-${{matrix.link}}:/ci  test-container ${{matrix.arch}}
+        sudo docker run --rm -v $GITHUB_WORKSPACE/${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}}:/ci  test-container ${{matrix.arch}}
     - name: Upload the Logs
       if: always()
       uses: actions/upload-artifact@v2
       with:
-        name: ${{matrix.arch}}-${{matrix.link}}-log
-        path: ./${{matrix.arch}}-${{matrix.link}}.log.tar.xz
+        name: ${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}}-log
+        path: ./${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}}.log.tar.xz
         if-no-files-found: error
   pre-release:
     needs: [create-release, build-matrix]

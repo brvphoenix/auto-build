@@ -1,0 +1,24 @@
+From c24cc9a6695d49298447c9bc1e2e16c2626bab8f Mon Sep 17 00:00:00 2001
+From: Chocobo1 <Chocobo1@users.noreply.github.com>
+Date: Mon, 10 Jan 2022 20:36:08 +0800
+Subject: [PATCH] Update default value of "Type of service for peers"
+
+Upstream change:
+https://github.com/arvidn/libtorrent/commit/3d701c7380a6cf24f947c0a7eecd74356812c1b8
+---
+ src/base/bittorrent/session.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/base/bittorrent/session.cpp b/src/base/bittorrent/session.cpp
+index 0852043a48..89327f8acc 100644
+--- a/src/base/bittorrent/session.cpp
++++ b/src/base/bittorrent/session.cpp
+@@ -343,7 +343,7 @@ Session::Session(QObject *parent)
+     , m_outgoingPortsMin(BITTORRENT_SESSION_KEY("OutgoingPortsMin"), 0)
+     , m_outgoingPortsMax(BITTORRENT_SESSION_KEY("OutgoingPortsMax"), 0)
+     , m_UPnPLeaseDuration(BITTORRENT_SESSION_KEY("UPnPLeaseDuration"), 0)
+-    , m_peerToS(BITTORRENT_SESSION_KEY("PeerToS"), 0x20)
++    , m_peerToS(BITTORRENT_SESSION_KEY("PeerToS"), 0x04)
+     , m_ignoreLimitsOnLAN(BITTORRENT_SESSION_KEY("IgnoreLimitsOnLAN"), false)
+     , m_includeOverheadInLimits(BITTORRENT_SESSION_KEY("IncludeOverheadInLimits"), false)
+     , m_announceIP(BITTORRENT_SESSION_KEY("AnnounceIP"))

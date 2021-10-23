@@ -1,0 +1,95 @@
+From a7c5826e05cbd512d262bef34fc64e2e57027fa3 Mon Sep 17 00:00:00 2001
+From: sledgehammer999 <hammered999@gmail.com>
+Date: Tue, 11 Jan 2022 02:48:08 +0200
+Subject: [PATCH] Migrate proxy settings
+
+Q_ENUM_NS(ProxyType) was introduced in 4.4.0.
+Before that wrapping QMetaEnum used the int value itself for loading/storing.
+
+Closes #15994
+---
+ src/app/upgrade.cpp | 47 ++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 46 insertions(+), 1 deletion(-)
+
+diff --git a/src/app/upgrade.cpp b/src/app/upgrade.cpp
+index 9ae11b7ad9..a2ebe61fb9 100644
+--- a/src/app/upgrade.cpp
++++ b/src/app/upgrade.cpp
+@@ -32,6 +32,7 @@
+ 
+ #include "base/bittorrent/torrentcontentlayout.h"
+ #include "base/logger.h"
++#include "base/net/proxyconfigurationmanager.h"
+ #include "base/preferences.h"
+ #include "base/profile.h"
+ #include "base/settingsstorage.h"
+@@ -42,7 +43,7 @@
+ 
+ namespace
+ {
+-    const int MIGRATION_VERSION = 2;
++    const int MIGRATION_VERSION = 3;
+     const char MIGRATION_VERSION_KEY[] = "Meta/MigrationVersion";
+ 
+     void exportWebUIHttpsFiles()
+@@ -326,6 +327,46 @@ namespace
+             }
+         }
+     }
++
++    void migrateProxySettingsEnum()
++    {
++        auto *settingsStorage = SettingsStorage::instance();
++        const auto key = QString::fromLatin1("Network/Proxy/Type");
++        const auto value = settingsStorage->loadValue<QString>(key);
++
++        bool ok = false;
++        const auto number = value.toInt(&ok);
++
++        if (ok)
++        {
++            switch (number)
++            {
++            case 0:
++                settingsStorage->storeValue(key, Net::ProxyType::None);
++                break;
++            case 1:
++                settingsStorage->storeValue(key, Net::ProxyType::HTTP);
++                break;
++            case 2:
++                settingsStorage->storeValue(key, Net::ProxyType::SOCKS5);
++                break;
++            case 3:
++                settingsStorage->storeValue(key, Net::ProxyType::HTTP_PW);
++                break;
++            case 4:
++                settingsStorage->storeValue(key, Net::ProxyType::SOCKS5_PW);
++                break;
++            case 5:
++                settingsStorage->storeValue(key, Net::ProxyType::SOCKS4);
++                break;
++            default:
++                LogMsg(QObject::tr("Invalid value found in configuration file, reverting it to default. Key: \"%1\". Invalid value: \"%2\".")
++                           .arg(key, QString::number(number)), Log::WARNING);
++                settingsStorage->removeValue(key);
++                break;
++            }
++        }
++    }
+ }
+ 
+ bool upgrade(const bool /*ask*/)
+@@ -343,9 +384,13 @@ bool upgrade(const bool /*ask*/)
+             upgradeDNSServiceSettings();
+             upgradeTrayIconStyleSettings();
+         }
++
+         if (version < 2)
+             migrateSettingKeys();
+ 
++        if (version < 3)
++            migrateProxySettingsEnum();
++
+         version = MIGRATION_VERSION;
+     }
+ 
