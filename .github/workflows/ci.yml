@@ -170,6 +170,7 @@ jobs:
         USE_SOURCE_URL=${USE_SOURCE_URL}/targets/${USE_TARGET}/${USE_SUBTARGET}
 
         echo "USE_BRANCH=${USE_BRANCH}" >> $GITHUB_ENV
+        echo "USE_LIBC=${USE_LIBC}" >> $GITHUB_ENV
         echo "USE_TARGET=${USE_TARGET}" >> $GITHUB_ENV
         echo "USE_SUBTARGET=${USE_SUBTARGET}" >> $GITHUB_ENV
         echo "USE_SOURCE_URL=${USE_SOURCE_URL}" >> $GITHUB_ENV
@@ -240,8 +241,19 @@ jobs:
         [ "${{matrix.link}}" = "dynamic" ] && sed -i 's/\(\.git\)\^\w\+/\1\;openwrt-21.02/g' ./feeds.conf.default
 
         # Sync with the source
+        sed -i 's/^src-git\( packages\)/src-git-full\1/g' ./feeds.conf.default
         ./scripts/feeds update -a
         rm -rf feeds/packages/libs/libtorrent-rasterbar
+
+        # Use boost 1.76.0 for static link
+        if [ "${{matrix.link}}" == "static" ]; then
+        	cd feeds/packages
+        	rm -rf libs/boost
+        	git checkout -f 7109e2ef1b194c4e856cbaae295ce32478e5b32c -- libs/boost
+        	cd ../..
+        fi
+
+        ./scripts/feeds update -i
         ./scripts/feeds install -a
 
         cat > .config <<EOF
@@ -298,6 +310,14 @@ jobs:
           # The libatomic is needed by mips_24kc and mipsel_24kc
           [ "${{matrix.arch}}" = "mips_24kc" ] || [ "${{matrix.arch}}" = "mipsel_24kc" ] && \
             find build/bin/targets -type f -iname libatomic* -exec cp -f {} ${SAVE_PATH}/2 \;
+
+          # The libs is needed by glibc
+          [ "${{env.USE_LIBC}}" = "glibc" ] && \
+            find build/bin/targets -type f \( \
+              -iname libc_* -or \
+              -iname libpthread_* -or \
+              -iname librt_* \
+            \) -exec cp -f {} ${SAVE_PATH}/2 \;
         fi
 
         tar -cJf ${SAVE_PATH}.tar.xz ${SAVE_PATH}
