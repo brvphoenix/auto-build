@@ -73,7 +73,7 @@ jobs:
       id: cache-sdk
       with:
         path: ./${{ env.USE_SDK_FILE }}
-        key: SDK-${{env.USE_CHOICE}}-${{ env.USE_SDK_VERSION }}
+        key: SDK-${{env.USE_CHOICE}}-${{env.USE_TARGET}}-${{env.USE_SUBTARGET}}-${{ env.USE_SDK_VERSION }}
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
       run: |
         wget --no-check-certificate ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
@@ -188,7 +188,7 @@ jobs:
       id: cache-sdk
       with:
         path: ./${{ env.USE_SDK_FILE }}
-        key: SDK-${{ matrix.arch }}-${{ env.USE_SDK_VERSION }}
+        key: SDK-${{ matrix.arch }}-${{env.USE_TARGET}}-${{env.USE_SUBTARGET}}-${{ env.USE_SDK_VERSION }}
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
       run: |
         wget --no-check-certificate ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
@@ -196,7 +196,7 @@ jobs:
         tar -xJf ${{ env.USE_SDK_FILE }}
         find ./ -maxdepth 1 -type d -iname 'openwrt-sdk*' -exec mv {} build \;
         rm -rf build/dl build/feeds
-    - name: Cache Source
+    - name: Cache feeds and downloaded source files
       uses: actions/cache@v2
       with:
         path: |
@@ -206,7 +206,7 @@ jobs:
         restore-keys: |
           source-${{matrix.link}}-
           source-
-    - name: Clone Source
+    - name: Clone qbt
       uses: actions/checkout@v2
       with:
         ref: ${{env.USE_BRANCH}}
@@ -320,12 +320,12 @@ jobs:
             \) -exec cp -f {} ${SAVE_PATH}/2 \;
         fi
 
+        # Compress the pkgs
         tar -cJf ${SAVE_PATH}.tar.xz ${SAVE_PATH}
 
-        # Compress the logs
         cd build
         # Compress the log files
-        XZ_OPT=-9 tar -cJvf ../${{matrix.arch}}-${{matrix.link}}.log.tar.xz logs
+        XZ_OPT=-9 tar -cJvf ../${SAVE_PATH}.log.tar.xz logs
 
         # Clean up the obsolete packages
         scripts/dl_cleanup.py dl 2>&1 >/dev/null
