@@ -41,8 +41,8 @@
 			"USE_EABI": "1"
 		},
 		"arm_cortex-a15_neon-vfpv4": {
-			"USE_TARGET": "ipq806x",
-			"USE_SUBTARGET": "generic",
+			"USE_TARGET": "armvirt",
+			"USE_SUBTARGET": "32",
 			"USE_GCC": "8.4.0",
 			"USE_EABI": "1"
 		},
