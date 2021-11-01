@@ -237,7 +237,7 @@ jobs:
         sed -i 's/git\.openwrt\.org\/feed\/telephony/github\.com\/openwrt\/telephony/g' ./feeds.conf.default
 
         # Use the stable release snapshot feeds sources (should upgrade if update the release version).
-        [ "${{matrix.link}}" = "dynamic" ] && sed -i 's/\(\.git\)\^\w\+/\1\;openwrt-19.07/g' ./feeds.conf.default
+        [ "${{matrix.link}}" = "dynamic" ] && sed -i 's/\(\.git\)\^\w\+/\1\;openwrt-21.02/g' ./feeds.conf.default
 
         # Sync with the source
         ./scripts/feeds update -a
@@ -324,7 +324,7 @@ jobs:
     - name: Build Docker container
       if: ${{ matrix.runtime_test }}
       run: |
-        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=19.07.8 ./docker
+        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=21.02.0 ./docker
     - name: Test via Docker container
       if: ${{ matrix.runtime_test }}
       run: |
