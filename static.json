@@ -10,46 +10,46 @@
 		"x86_64": {
 			"USE_TARGET": "x86",
 			"USE_SUBTARGET": "64",
-			"USE_GCC": "10.3.0"
+			"USE_GCC": "11.2.0"
 		},
 		"mips_24kc": {
 			"USE_TARGET": "ath79",
 			"USE_SUBTARGET": "generic",
-			"USE_GCC": "10.3.0"
+			"USE_GCC": "11.2.0"
 		},
 		"mipsel_24kc": {
 			"USE_TARGET": "ramips",
 			"USE_SUBTARGET": "mt7621",
-			"USE_GCC": "10.3.0"
+			"USE_GCC": "11.2.0"
 		},
 		"arm_cortex-a9": {
 			"USE_TARGET": "bcm53xx",
 			"USE_SUBTARGET": "generic",
-			"USE_GCC": "10.3.0",
+			"USE_GCC": "11.2.0",
 			"USE_EABI": "1"
 		},
 		"arm_cortex-a7_neon-vfpv4": {
 			"USE_TARGET": "ipq40xx",
 			"USE_SUBTARGET": "generic",
-			"USE_GCC": "10.3.0",
+			"USE_GCC": "11.2.0",
 			"USE_EABI": "1"
 		},
 		"arm_cortex-a9_vfpv3": {
 			"USE_TARGET": "mvebu",
 			"USE_SUBTARGET": "cortexa9",
-			"USE_GCC": "10.3.0",
+			"USE_GCC": "11.2.0",
 			"USE_EABI": "1"
 		},
 		"arm_cortex-a15_neon-vfpv4": {
 			"USE_TARGET": "ipq806x",
 			"USE_SUBTARGET": "generic",
-			"USE_GCC": "10.3.0",
+			"USE_GCC": "11.2.0",
 			"USE_EABI": "1"
 		},
 		"aarch64_cortex-a53": {
 			"USE_TARGET": "armvirt",
 			"USE_SUBTARGET": "64",
-			"USE_GCC": "10.3.0"
+			"USE_GCC": "11.2.0"
 		}
 	}
 }
