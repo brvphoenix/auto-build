@@ -134,6 +134,8 @@ jobs:
     steps:
     - name: Clone Current Repository
       uses: actions/checkout@v2
+      with:
+        path: auto-build
     - name: Install Dependencies
       run: |
         sudo -E apt-get update
@@ -141,15 +143,16 @@ jobs:
                            libssl-dev python python3 subversion time unzip wget xz-utils zlib1g-dev
     - name: Initialize Environment
       run: |
-        USE_BRANCH=$(jq -r .qbt.USE_BRANCH ${{matrix.link}}.json)
+        JSON_FILE=auto-build/${{matrix.link}}.json
+        USE_BRANCH=$(jq -r .qbt.USE_BRANCH ${JSON_FILE})
         vars="USE_PROTOCOL USE_DOMAIN USE_RELEASE USE_VERSION"
         for i in $vars; do
-          eval "${i}=$(jq -r .openwrt.${i} ${{matrix.link}}.json)"
+          eval "${i}=$(jq -r .openwrt.${i} ${JSON_FILE})"
         done
 
         vars="USE_GCC USE_LIBC USE_TARGET USE_SUBTARGET USE_UNIQUE USE_EABI"
         for i in $vars; do
-          eval "${i}=$(jq -r .openwrt[\"${{matrix.arch}}\"].${i} ${{matrix.link}}.json)"
+          eval "${i}=$(jq -r .openwrt[\"${{matrix.arch}}\"].${i} ${JSON_FILE})"
         done
 
         USE_SOURCE_URL=${USE_PROTOCOL}://${USE_DOMAIN}/${USE_RELEASE}
@@ -225,7 +228,7 @@ jobs:
 
         cp -r ../SomePackages/qbittorrent/* package
         rm -rf package/libtorrent-rasterbar package/CMake
-        rsync -a ../rsync/* ./
+        rsync -a ../auto-build/rsync/* ./
 
         # Make qmake compile in parallel (should be deleted when update to Qt6)
         mv ../test.mk package/qtbase
@@ -344,11 +347,11 @@ jobs:
     - name: Build Docker container
       if: ${{ matrix.runtime_test }}
       run: |
-        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=21.02.0 ./docker
+        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=21.02.0 ./auto-build/docker
     - name: Test via Docker container
       if: ${{ matrix.runtime_test }}
       run: |
-        sudo docker run --rm -v $GITHUB_WORKSPACE/${{matrix.arch}}-${{matrix.link}}:/ci -v $GITHUB_WORKSPACE/docker:/docker test-container ${{matrix.arch}}
+        sudo docker run --rm -v $GITHUB_WORKSPACE/${{matrix.arch}}-${{matrix.link}}:/ci  test-container ${{matrix.arch}}
     - name: Upload the Logs
       if: always()
       uses: actions/upload-artifact@v2
