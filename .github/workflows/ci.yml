@@ -244,17 +244,8 @@ jobs:
         [ "${{matrix.link}}" = "dynamic" ] && sed -i 's/\(\.git\)\^\w\+/\1\;openwrt-21.02/g' ./feeds.conf.default
 
         # Sync with the source
-        sed -i 's/^src-git\( packages\)/src-git-full\1/g' ./feeds.conf.default
         ./scripts/feeds update -a
         rm -rf feeds/packages/libs/libtorrent-rasterbar
-
-        # Use boost 1.76.0 for static link
-        if [ "${{matrix.link}}" == "static" ]; then
-        	cd feeds/packages
-        	rm -rf libs/boost
-        	git checkout -f 7109e2ef1b194c4e856cbaae295ce32478e5b32c -- libs/boost
-        	cd ../..
-        fi
 
         ./scripts/feeds update -i
         ./scripts/feeds install -a
