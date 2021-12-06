@@ -1,11 +1,11 @@
 #
-# Copyright (C) 2007-2020 OpenWrt
+# Copyright (C) 2007-2021
 #
 
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libtorrent-rasterbar
-PKG_VERSION:=1.2.14
+PKG_VERSION:=1.2.15
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-RC_1_2.tar.gz
@@ -13,8 +13,9 @@ PKG_SOURCE_URL:=https://codeload.github.com/arvidn/libtorrent/tar.gz/RC_1_2?
 PKG_HASH:=skip
 PKG_BUILD_DIR:=$(BUILD_DIR)/libtorrent-RC_1_2
 
-PKG_LICENSE:=BSL-1.0
+PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE
+PKG_CPE_ID:=cpe:/a:libtorrent:libtorrent
 
 PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
@@ -26,19 +27,19 @@ include $(INCLUDE_DIR)/nls.mk
 define Package/$(PKG_NAME)
   SECTION:=libs
   CATEGORY:=Libraries
-  TITLE:=Rasterbar BitTorrent library
+  TITLE:=C++ bittorrent library by Rasterbar Software
   URL:=https://www.libtorrent.org
   DEPENDS:=+boost +boost-system +libgcc +libopenssl +libstdcpp $(ICONV_DEPENDS)
   ABI_VERSION:=10
 endef
 
 define Package/$(PKG_NAME)/description
-  Rasterbar libtorrent is an open source C++ library implementing the BitTorrent
-  protocol, along with most popular extensions, making it suitable for real world
-  deployment. It is configurable to be able to fit both servers and embedded devices.
+  Libtorrent is a feature complete C++ bittorrent implementation focusing on
+  efficiency and scalability. It runs on embedded devices as well as desktops.
+  It boasts a well documented library interface that is easy to use.
 endef
 
-TARGET_CFLAGS += -std=c++14 $(FPIC) -ffunction-sections -fdata-sections
+TARGET_CFLAGS += $(FPIC) -ffunction-sections -fdata-sections
 TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
 
 CONFIGURE_ARGS += \
@@ -49,10 +50,10 @@ CONFIGURE_ARGS += \
 	--enable-logging=no \
 	--enable-encryption \
 	--disable-deprecated-functions \
+	--with-cxx-standard=17 \
 	--with-gnu-ld \
 	--with-boost=$(STAGING_DIR)/usr \
-	--with-libiconv \
-	--with-libiconv-prefix=$(ICONV_PREFIX)
+	--with-libiconv
 
 define Build/Prepare
 	$(call Build/Prepare/Default)
@@ -61,12 +62,12 @@ endef
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)
-	$(CP) $(PKG_INSTALL_DIR)/* $(1)/
+	$(CP) $(PKG_INSTALL_DIR)/* $(1)
 endef
 
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/lib
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.so* $(1)/usr/lib
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))
