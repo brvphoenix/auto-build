@@ -17,27 +17,42 @@ jobs:
       run: |
         tag_name=$(basename ${{github.ref}})
         hub release create -d -t master -m "Release $tag_name" $tag_name
+  build_prep:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - name: Clone Current Repository
+      uses: actions/checkout@v2
+    - id: set-matrix
+      run: |
+        matrix=
+        for json_file in ./*.json; do
+        	libt_ver="$(jq -r .qbt.LIBTORRENT_VERSION[]? ${json_file})"
+        	qt_ver="$(jq -r .qbt.QT_VERSION[]? ${json_file})"
+        	json_file_name=$(basename $json_file)
+        	link=${json_file_name%.*}
+        	architectures=$(jq -r '.openwrt | to_entries[] | select((.value | type) == "object") | .key' ${json_file})
+        	for arch in $architectures; do
+        		if [ "$(jq -r '.openwrt["'$arch'"].RUN_SKIP? // false' ${json_file})" = "false" ]; then
+        			runtime_test=$(jq -r '.openwrt["'$arch'"].RUNTIME_TEST? // false' ${json_file})
+        			for libtorrent in ${libt_ver}; do
+        				for qt in ${qt_ver}; do
+        					[ -z "${matrix}" ] ||  matrix="${matrix},"
+        					matrix="${matrix}{\"arch\":\"${arch}\",\"link\":\"${link}\",\"libtorrent\":\"${libtorrent}\",\"qt\":\"${qt}\",\"runtime_test\":${runtime_test}}"
+        				done
+        			done
+        		fi
+        	done
+        done
+        echo "::set-output name=matrix::{\"include\":[${matrix}]}"
   build-matrix:
     name: ${{matrix.link}}, ${{matrix.arch}}, qt${{matrix.qt}}, libtorrent_${{matrix.libtorrent}}
-    needs: create-release
+    needs: [create-release, build_prep]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        arch: [mips_24kc, mipsel_24kc, arm_cortex-a9, arm_cortex-a7_neon-vfpv4, arm_cortex-a9_vfpv3-d16, arm_cortex-a15_neon-vfpv4, aarch64_cortex-a53, x86_64]
-        link: [dynamic, static]
-        libtorrent: [1_2, 2_0]
-        qt: [5, 6]
-        runtime_test: [false, true]
-        exclude:
-          - {arch: mips_24kc, runtime_test: true}
-          - {arch: mipsel_24kc, runtime_test: true}
-          - {arch: arm_cortex-a9, runtime_test: true}
-          - {arch: arm_cortex-a7_neon-vfpv4, runtime_test: true}
-          - {arch: arm_cortex-a9_vfpv3-d16, runtime_test: true}
-          - {arch: arm_cortex-a15_neon-vfpv4, runtime_test: false}
-          - {arch: aarch64_cortex-a53, runtime_test: false}
-          - {arch: x86_64, runtime_test: false}
+      matrix: ${{ fromJson(needs.build_prep.outputs.matrix) }}
     steps:
     - name: Clone Current Repository
       uses: actions/checkout@v2
@@ -51,40 +66,35 @@ jobs:
     - name: Initialize Environment
       run: |
         JSON_FILE=auto-build/${{matrix.link}}.json
-        USE_BRANCH=$(jq -r .qbt.USE_BRANCH ${JSON_FILE})
-        vars="USE_PROTOCOL USE_DOMAIN USE_RELEASE USE_VERSION"
-        for i in $vars; do
-          eval "${i}=$(jq -r .openwrt.${i} ${JSON_FILE})"
+
+        for item in $(jq -r '.openwrt | keys[]' ${JSON_FILE}); do
+        	if [ "$(jq -r '.openwrt["'$item'"] | type' ${JSON_FILE})" = "string" ]; then
+        		eval ${item}=$(jq -r '.openwrt["'$item'"]' ${JSON_FILE})
+        	fi
         done
 
-        vars="USE_GCC USE_LIBC USE_TARGET USE_SUBTARGET USE_UNIQUE USE_EABI"
-        for i in $vars; do
-          eval "${i}=$(jq -r .openwrt[\"${{matrix.arch}}\"].${i} ${JSON_FILE})"
+        for option in $(jq -r '.openwrt["${{ matrix.arch }}"] | keys[]' ${JSON_FILE}); do
+        	eval ${option}=$(jq -r '.openwrt["${{ matrix.arch }}"]["'$option'"]' ${JSON_FILE})
         done
 
         USE_SOURCE_URL=${USE_PROTOCOL}://${USE_DOMAIN}/${USE_RELEASE}
         SDK_FILE=openwrt-sdk
 
-        [ "${USE_RELEASE}" = "releases" ] && {
+        if [ "${USE_RELEASE}" = "releases" ]; then
           USE_SOURCE_URL=${USE_SOURCE_URL}/${USE_VERSION}
           SDK_FILE=${SDK_FILE}-${USE_VERSION}
-        }
+        fi
 
-        SDK_FILE=${SDK_FILE}-${USE_TARGET}
-        [ "${USE_UNIQUE}" = "1" ] || SDK_FILE="${SDK_FILE}-${USE_SUBTARGET}"
+        USE_SOURCE_URL=${USE_SOURCE_URL}/targets/${USE_MAJOR_TARGET}/${USE_MINOR_TARGET}
+        USE_TARGET=${USE_MAJOR_TARGET}$([ "${USE_UNIQUE}" = "true" ] || echo -${USE_MINOR_TARGET})
+        USE_EXTENSION=$([ "${USE_EABI}" != "true" ] || echo _eabi)
+        SDK_FILE=${SDK_FILE}-${USE_TARGET}_gcc-${USE_GCC}_${USE_LIBC:-musl}${USE_EXTENSION}.Linux-x86_64.tar.xz
 
-        SDK_FILE=${SDK_FILE}_gcc-${USE_GCC}_$( [ "${USE_LIBC}" = "null" ] && echo musl || echo ${USE_LIBC} )
-        [ "${USE_EABI}" = "1" ] && SDK_FILE="${SDK_FILE}_eabi"
-
-        SDK_FILE=${SDK_FILE}.Linux-x86_64.tar.xz
-        USE_SOURCE_URL=${USE_SOURCE_URL}/targets/${USE_TARGET}/${USE_SUBTARGET}
-
-        echo "USE_BRANCH=${USE_BRANCH}" >> $GITHUB_ENV
-        echo "USE_LIBC=${USE_LIBC}" >> $GITHUB_ENV
-        echo "USE_TARGET=${USE_TARGET}" >> $GITHUB_ENV
-        echo "USE_SUBTARGET=${USE_SUBTARGET}" >> $GITHUB_ENV
-        echo "USE_SOURCE_URL=${USE_SOURCE_URL}" >> $GITHUB_ENV
+        echo "RUN_ON_TARGET=${RUN_ON_TARGET:-${USE_TARGET}}" >> $GITHUB_ENV
+        echo "USE_BRANCH=$(jq -r .qbt.USE_BRANCH ${JSON_FILE})" >> $GITHUB_ENV
         echo "USE_SDK_FILE=${SDK_FILE}" >> $GITHUB_ENV
+        echo "USE_SOURCE_URL=${USE_SOURCE_URL}" >> $GITHUB_ENV
+        echo "USE_TARGET=${USE_TARGET}" >> $GITHUB_ENV
     - name: Check Version
       run: |
         curl -O "${{env.USE_SOURCE_URL}}/version.buildinfo"
@@ -98,7 +108,7 @@ jobs:
       id: cache-sdk
       with:
         path: ./${{ env.USE_SDK_FILE }}
-        key: SDK-${{ matrix.arch }}-${{env.USE_TARGET}}-${{env.USE_SUBTARGET}}-${{ env.USE_SDK_VERSION }}
+        key: SDK-${{ matrix.arch }}-${{env.USE_TARGET}}-${{ env.USE_SDK_VERSION }}
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
       run: |
         wget --no-check-certificate ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
@@ -330,7 +340,7 @@ jobs:
     - name: Build Docker container
       if: ${{ matrix.runtime_test }}
       run: |
-        sudo docker build -t test-container --build-arg ARCH=${{ matrix.arch }} --build-arg BRANCH=21.02.0 ./auto-build/docker
+        sudo docker build -t test-container --build-arg ARCH=${{ env.RUN_ON_TARGET }} --build-arg BRANCH=21.02.1 ./auto-build/docker
     - name: Test via Docker container
       if: ${{ matrix.runtime_test }}
       run: |
