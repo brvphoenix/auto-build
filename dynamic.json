@@ -1,6 +1,8 @@
 {
 	"qbt": {
-		"USE_BRANCH": "qt56"
+		"USE_BRANCH": "qt56",
+		"LIBTORRENT_VERSION": ["1_2", "2_0"],
+		"QT_VERSION": [5, 6]
 	},
 	"openwrt": {
 		"USE_PROTOCOL": "https",
@@ -8,48 +10,57 @@
 		"USE_RELEASE": "releases",
 		"USE_VERSION": "21.02.1",
 		"x86_64": {
-			"USE_TARGET": "x86",
-			"USE_SUBTARGET": "64",
-			"USE_GCC": "8.4.0"
+			"USE_MAJOR_TARGET": "x86",
+			"USE_MINOR_TARGET": "64",
+			"USE_GCC": "8.4.0",
+			"RUNTIME_TEST": true
 		},
 		"mips_24kc": {
-			"USE_TARGET": "ath79",
-			"USE_SUBTARGET": "generic",
+			"USE_MAJOR_TARGET": "malta",
+			"USE_MINOR_TARGET": "be",
 			"USE_GCC": "8.4.0"
 		},
 		"mipsel_24kc": {
-			"USE_TARGET": "ramips",
-			"USE_SUBTARGET": "mt7621",
+			"USE_MAJOR_TARGET": "ramips",
+			"USE_MINOR_TARGET": "mt7621",
 			"USE_GCC": "8.4.0"
 		},
 		"arm_cortex-a9": {
-			"USE_TARGET": "bcm53xx",
-			"USE_SUBTARGET": "generic",
+			"USE_MAJOR_TARGET": "bcm53xx",
+			"USE_MINOR_TARGET": "generic",
 			"USE_GCC": "8.4.0",
-			"USE_EABI": "1"
+			"USE_EABI": true,
+			"RUNTIME_TEST": true,
+			"RUN_ON_TARGET": "armvirt-32"
 		},
 		"arm_cortex-a7_neon-vfpv4": {
-			"USE_TARGET": "ipq40xx",
-			"USE_SUBTARGET": "generic",
+			"USE_MAJOR_TARGET": "ipq40xx",
+			"USE_MINOR_TARGET": "generic",
 			"USE_GCC": "8.4.0",
-			"USE_EABI": "1"
+			"USE_EABI": true,
+			"RUNTIME_TEST": true,
+			"RUN_ON_TARGET": "armvirt-32"
 		},
 		"arm_cortex-a9_vfpv3-d16": {
-			"USE_TARGET": "mvebu",
-			"USE_SUBTARGET": "cortexa9",
+			"USE_MAJOR_TARGET": "mvebu",
+			"USE_MINOR_TARGET": "cortexa9",
 			"USE_GCC": "8.4.0",
-			"USE_EABI": "1"
+			"USE_EABI": true,
+			"RUNTIME_TEST": true,
+			"RUN_ON_TARGET": "armvirt-32"
 		},
 		"arm_cortex-a15_neon-vfpv4": {
-			"USE_TARGET": "armvirt",
-			"USE_SUBTARGET": "32",
+			"USE_MAJOR_TARGET": "armvirt",
+			"USE_MINOR_TARGET": "32",
 			"USE_GCC": "8.4.0",
-			"USE_EABI": "1"
+			"USE_EABI": true,
+			"RUNTIME_TEST": true
 		},
 		"aarch64_cortex-a53": {
-			"USE_TARGET": "armvirt",
-			"USE_SUBTARGET": "64",
-			"USE_GCC": "8.4.0"
+			"USE_MAJOR_TARGET": "armvirt",
+			"USE_MINOR_TARGET": "64",
+			"USE_GCC": "8.4.0",
+			"RUNTIME_TEST": true
 		}
 	}
 }
