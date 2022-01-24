@@ -34,7 +34,7 @@
 			"USE_GCC": "8.4.0",
 			"USE_EABI": "1"
 		},
-		"arm_cortex-a9_vfpv3": {
+		"arm_cortex-a9_vfpv3-d16": {
 			"USE_TARGET": "mvebu",
 			"USE_SUBTARGET": "cortexa9",
 			"USE_GCC": "8.4.0",
