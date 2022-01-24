@@ -200,57 +200,129 @@ jobs:
         make package/luci-app-qbittorrent/compile V=s -j$(nproc) BUILD_LOG=1
     - name: Pack all the flies
       if: always()
+      working-directory: ./build
+      shell: bash
       run: |
+        # Common name of the saved files
+        SAVED_NAME=${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}}
+
+        # Compress the log files
+        XZ_OPT=-9 tar -cJvf ../${SAVED_NAME}.log.tar.xz logs
+
         # The save path of the packages
-        SAVE_PATH=${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}}
-        mkdir -p ${SAVE_PATH}
+        PKGS_DIR=${SAVED_NAME}/pkgs
+        KEY_DIR=${SAVED_NAME}/key
+        mkdir -p ${PKGS_DIR} ${KEY_DIR}
 
         if [ "${{matrix.link}}" = "static" ]; then
-          find build/bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${SAVE_PATH} \;
+          find bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${PKGS_DIR} \;
         else
-          mkdir -p ${SAVE_PATH}/1 ${SAVE_PATH}/2
-          find build/bin/packages -type f \( -iname libqt${{matrix.qt}}* -or -iname  *torrent*.ipk \) -exec cp -f {} ${SAVE_PATH}/1 \;
-          find build/bin/packages -type f \( \
+          find bin/packages -type f \( \
+            -iname libqt${{matrix.qt}}* -or \
+            -iname  *torrent*.ipk -or \
             -iname libopenssl1* -or \
             -iname boost_* -or \
             -iname boost-system* -or \
             -iname libdouble-conversion* -or \
             -iname libpcre2-16* -or \
             -iname zlib_* \
-          \) -exec cp -f {} ${SAVE_PATH}/2 \;
-          find build/bin/targets -type f -iname libstdcpp* -exec cp -f {} ${SAVE_PATH}/2 \;
+          \) -exec cp -f {} ${PKGS_DIR} \;
 
-          # The libatomic is needed by mips_24kc and mipsel_24kc
-          [ "${{matrix.arch}}" = "mips_24kc" ] || [ "${{matrix.arch}}" = "mipsel_24kc" ] && \
-            find build/bin/targets -type f -iname libatomic* -exec cp -f {} ${SAVE_PATH}/2 \;
-
-          # The libs is needed by glibc
-          [ "${{env.USE_LIBC}}" = "glibc" ] && \
-            find build/bin/targets -type f \( \
-              -iname libc_* -or \
-              -iname libpthread_* -or \
-              -iname librt_* \
-            \) -exec cp -f {} ${SAVE_PATH}/2 \;
+          find bin/targets -type f \( \
+            -iname libstdcpp* -or \
+            -iname libatomic* \
+          \) -exec cp -f {} ${PKGS_DIR} \;
         fi
 
-        # Compress the pkgs
-        tar -cJf ${SAVE_PATH}.tar.xz ${SAVE_PATH}
+        # Add to repository
+        STAGING_DIR_HOST=$(pwd)/staging_dir/host
+        SCRIPT_DIR=$(pwd)/scripts
+        BUILD_KEY=qbt-key
+        export MKHASH=${STAGING_DIR_HOST}/bin/mkhash
+        export PATH=${STAGING_DIR_HOST}/bin:$PATH
+        usign -G -s ${BUILD_KEY} -p ${BUILD_KEY}.pub -c "Local qbt build key"
+        ucert -I -c ${BUILD_KEY}.ucert -p ${BUILD_KEY}.pub -s ${BUILD_KEY}
 
-        cd build
-        # Compress the log files
-        XZ_OPT=-9 tar -cJvf ../${SAVE_PATH}.log.tar.xz logs
+        fingerprint=$(usign -F -p ${BUILD_KEY}.pub)
+        cp ${BUILD_KEY}.pub "${KEY_DIR}/$fingerprint"
+
+        cd ${PKGS_DIR} && \
+        	${SCRIPT_DIR}/ipkg-make-index.sh . > Packages &&  \
+        	gzip -9nc Packages > Packages.gz
+        cd "$(echo ${PKGS_DIR} | sed 's/^\///g' | sed 's/\// /g' | sed 's/\S\+/../g' | sed 's/ /\//g')"
+
+        usign -S -m "${PKGS_DIR}/Packages" -s "${BUILD_KEY}"
+
+        # Generate the install script
+        cat > ${SAVED_NAME}/install.sh <<-EOF
+        	#!/bin/sh
+        	work_dir=\$(pwd)
+        	script_dir="\$( cd "\$( dirname "\$0" )" && pwd )"
+
+        	cd \${work_dir}
+
+        	if [ -n "\$(opkg print-architecture | awk '{print \$2}' | grep '^${{ matrix.arch }}\$')" ]; then
+        	$(echo -e "\t")add_arch=0
+        	else
+        	$(echo -e "\t")add_arch=1
+        	$(echo -e "\t")sed -i "\\\$a# qbt add start\\\\n\$(opkg print-architecture | sed ':a;N;\$!ba;s/\n/\\\n/g')\\\\narch ${{ matrix.arch }} 1\\\\n# qbt add end" /etc/opkg.conf
+        	fi
+
+        	case "\$1" in
+        	$(echo -e "\t")install)
+        	$(echo -e "\t\t")cp \${script_dir}/key/$fingerprint /etc/opkg/keys
+        	$(echo -e "\t\t")sed -i "\\\$asrc\\/gz openwrt_qbt file\\:\$(echo \${script_dir}/pkgs | sed 's/\//\\\\\//g')" /etc/opkg/customfeeds.conf
+
+        	$(echo -e "\t\t")opkg print-architecture
+
+        	$(echo -e "\t\t")mkdir -p /var/opkg-lists/
+        	$(echo -e "\t\t")cp \${script_dir}/pkgs/Packages.gz /var/opkg-lists/openwrt_qbt
+        	$(echo -e "\t\t")cp \${script_dir}/pkgs/Packages.sig /var/opkg-lists/openwrt_qbt.sig
+
+        	$(echo -e "\t\t")opkg install luci-i18n-qbittorrent-zh-cn
+        	$(echo -e "\t\t")sed -i "/src\\/gz openwrt_qbt file\\:\$(echo \${script_dir}/pkgs | sed 's/\//\\\\\//g')/d" /etc/opkg/customfeeds.conf
+        	$(echo -e "\t\t")rm -rf /etc/opkg/keys/$fingerprint
+        	$(echo -e "\t");;
+        	$(echo -e "\t")remove)
+        	$(echo -e "\t\t")opkg --force-removal-of-dependent-packages \$@
+        	$(echo -e "\t");;
+        	$(echo -e "\t")*)
+        	$(echo -e "\t\t")echo "Usage:"
+        	$(echo -e "\t\t")echo "	\$0 [sub-command]"
+        	$(echo -e "\t\t")echo ""
+        	$(echo -e "\t\t")echo "Commands:"
+        	$(echo -e "\t\t")echo "	install			Install qbittorrent and its depends"
+        	$(echo -e "\t\t")echo "	remove <pkgs>		Uninstall pkgs"
+        	$(echo -e "\t\t")echo ""
+        	$(echo -e "\t");;
+        	esac
+
+        	[ "\$add_arch" = 1 ] && sed -i '/# qbt add start/{:a;N;/# qbt add end/!ba;d}' /etc/opkg.conf || exit 0
+        EOF
+
+        # Compress the pkgs
+        tar -cJf ../${SAVED_NAME}.tar.xz ${SAVED_NAME}
+
+        # Compress and encrypt the keychain
+        tar -czvf - ${BUILD_KEY}.ucert ${BUILD_KEY}.pub ${BUILD_KEY} | \
+        openssl enc -aes-256-ctr -pbkdf2 -pass pass:${{ secrets.KEYCHAIN }} > ../${SAVED_NAME}-keychain.bin
+
+        # openssl enc -d -aes-256-ctr -pbkdf2 -pass pass:123456 -in ../${SAVED_NAME}-keychain.bin  | tar -xz
 
         # Clean up the obsolete packages
         scripts/dl_cleanup.py dl 2>&1 >/dev/null
         rm -rf dl/libtorrent-rasterbar-RC_${{matrix.libtorrent}}.tar.gz
+
+        echo "SAVED_NAME=${SAVED_NAME}" >> $GITHUB_ENV
     - name: Upload Release Asset
       env:
         GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
       run: |
-        [ -n "$(find ${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}} -type f -iname *qbittorrent*)" ] || exit 1
+        [ -n "$(find build/${{ env.SAVED_NAME }} -type f -iname *qbittorrent*)" ] || exit 1
         tag_name=$(basename ${{github.ref}})
         cd auto-build
-        hub release edit $tag_name -a ../${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}}.tar.xz -m ""
+        hub release edit $tag_name -a ../${{ env.SAVED_NAME }}.tar.xz -m ""
+        hub release edit $tag_name -a ../${{ env.SAVED_NAME }}-keychain.bin -m ""
     - name: Register QEMU
       if: ${{ matrix.runtime_test }}
       run: |
@@ -262,13 +334,13 @@ jobs:
     - name: Test via Docker container
       if: ${{ matrix.runtime_test }}
       run: |
-        sudo docker run --rm -v $GITHUB_WORKSPACE/${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}}:/ci  test-container ${{matrix.arch}}
+        sudo docker run --rm -v $GITHUB_WORKSPACE/build/${{ env.SAVED_NAME }}:/ci test-container
     - name: Upload the Logs
       if: always()
       uses: actions/upload-artifact@v2
       with:
-        name: ${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}}-log
-        path: ./${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}}.log.tar.xz
+        name: ${{ env.SAVED_NAME }}-log
+        path: ./${{ env.SAVED_NAME }}.log.tar.xz
         if-no-files-found: error
   pre-release:
     needs: [create-release, build-matrix]
