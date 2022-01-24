@@ -207,7 +207,7 @@ jobs:
         	sed -i '/^define Package\/libtorrent-rasterbar$/{:a;N;/endef/!ba;s/\(endef\)/  BUILDONLY:=1\n\1/g}' package/libtorrent-rasterbar/Makefile
         }
         make defconfig
-        make package/luci-app-qbittorrent/compile V=s -j$(nproc) BUILD_LOG=1
+        make package/luci-app-qbittorrent/compile V=sc -j$(nproc) BUILD_LOG=1
     - name: Pack all the flies
       if: always()
       working-directory: ./build
