@@ -1,6 +1,6 @@
 {
 	"qbt": {
-		"USE_BRANCH": "qt56",
+		"USE_BRANCH": "multi-version",
 		"LIBTORRENT_VERSION": ["1_2", "2_0"],
 		"QT_VERSION": [5, 6]
 	},

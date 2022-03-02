@@ -344,7 +344,7 @@ jobs:
     - name: Build Docker container
       if: ${{ matrix.runtime_test }}
       run: |
-        sudo docker build -t test-container --build-arg ARCH=${{ env.RUN_ON_TARGET }} --build-arg BRANCH=21.02.1 ./auto-build/docker
+        sudo docker build -t test-container --build-arg ARCH=${{ env.RUN_ON_TARGET }} --build-arg BRANCH=21.02.2 ./auto-build/docker
     - name: Test via Docker container
       if: ${{ matrix.runtime_test }}
       run: |
