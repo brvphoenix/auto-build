@@ -1,6 +1,6 @@
 {
 	"qbt": {
-		"USE_BRANCH": "qt56",
+		"USE_BRANCH": "multi-version",
 		"LIBTORRENT_VERSION": ["1_2", "2_0"],
 		"QT_VERSION": [5, 6]
 	},
@@ -8,7 +8,7 @@
 		"USE_PROTOCOL": "https",
 		"USE_DOMAIN": "downloads.openwrt.org",
 		"USE_RELEASE": "releases",
-		"USE_VERSION": "21.02.1",
+		"USE_VERSION": "21.02.2",
 		"x86_64": {
 			"USE_MAJOR_TARGET": "x86",
 			"USE_MINOR_TARGET": "64",
