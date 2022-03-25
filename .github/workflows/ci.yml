@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Clone Current Repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
     - name: Create Release
       env:
         GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
@@ -27,7 +27,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
     - name: Clone Current Repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
     - id: set-matrix
       run: |
         matrix=
@@ -59,7 +59,7 @@ jobs:
       matrix: ${{ fromJson(needs.build_prep.outputs.matrix) }}
     steps:
     - name: Clone Current Repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         path: auto-build
     - name: Install Dependencies
@@ -131,7 +131,7 @@ jobs:
           source-${{matrix.link}}-
           source-
     - name: Clone qbt
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         ref: ${{env.USE_BRANCH}}
         repository: brvphoenix/SomePackages
@@ -361,7 +361,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Clone Current Repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
     - name: Edit Release Status
       env:
         GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
