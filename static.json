@@ -34,8 +34,8 @@
 			"RUN_ON_TARGET": "armvirt-32"
 		},
 		"arm_cortex-a7_neon-vfpv4": {
-			"USE_MAJOR_TARGET": "ipq40xx",
-			"USE_MINOR_TARGET": "generic",
+			"USE_MAJOR_TARGET": "sunxi",
+			"USE_MINOR_TARGET": "cortexa7",
 			"USE_GCC": "11.2.0",
 			"USE_EABI": true,
 			"RUNTIME_TEST": true,
