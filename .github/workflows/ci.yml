@@ -351,7 +351,7 @@ jobs:
         sudo docker run --rm -v $GITHUB_WORKSPACE/build/${{ env.SAVED_NAME }}:/ci test-container
     - name: Upload the Logs
       if: always()
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: ${{ env.SAVED_NAME }}-log
         path: ./${{ env.SAVED_NAME }}.log.tar.xz
