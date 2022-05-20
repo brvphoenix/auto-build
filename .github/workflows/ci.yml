@@ -32,8 +32,8 @@ jobs:
       run: |
         matrix=
         for json_file in ./*.json; do
-        	libt_ver="$(jq -r .qbt.LIBTORRENT_VERSION[]? ${json_file})"
-        	qt_ver="$(jq -r .qbt.QT_VERSION[]? ${json_file})"
+        	libt_ver="$(jq -r '.qbittorrent.LIBTORRENT_VERSION? | to_entries[]? | .key?' ${json_file})"
+        	qt_ver="$(jq -r '.qbittorrent.QT_VERSION? | to_entries[]? | .key?' ${json_file})"
         	json_file_name=$(basename $json_file)
         	link=${json_file_name%.*}
         	architectures=$(jq -r '.openwrt | to_entries[] | select((.value | type) == "object") | .key' ${json_file})
@@ -68,8 +68,9 @@ jobs:
         sudo -E apt-get -y install build-essential curl flex gawk git jq libelf-dev libncurses5-dev \
                            libssl-dev python python3 subversion time unzip wget xz-utils zlib1g-dev
     - name: Initialize Environment
+      working-directory: ./auto-build
       run: |
-        JSON_FILE=auto-build/${{matrix.link}}.json
+        JSON_FILE=./${{matrix.link}}.json
 
         for item in $(jq -r '.openwrt | keys[]' ${JSON_FILE}); do
         	if [ "$(jq -r '.openwrt["'$item'"] | type' ${JSON_FILE})" = "string" ]; then
@@ -95,10 +96,12 @@ jobs:
         SDK_FILE=${SDK_FILE}-${USE_TARGET}_gcc-${USE_GCC}_${USE_LIBC:-musl}${USE_EXTENSION}.Linux-x86_64.tar.xz
 
         echo "RUN_ON_TARGET=${RUN_ON_TARGET:-${USE_TARGET}}" >> $GITHUB_ENV
-        echo "USE_BRANCH=$(jq -r .qbt.USE_BRANCH ${JSON_FILE})" >> $GITHUB_ENV
+        echo "USE_LIBT_BRANCH=$(jq -r '.qbittorrent.LIBTORRENT_VERSION?["${{matrix.libtorrent}}"]' ${JSON_FILE})" >> $GITHUB_ENV
+        echo "USE_QT_BRANCH=$(jq -r '.qbittorrent.QT_VERSION?["${{matrix.qt}}"]' ${JSON_FILE})" >> $GITHUB_ENV
         echo "USE_SDK_FILE=${SDK_FILE}" >> $GITHUB_ENV
         echo "USE_SOURCE_URL=${USE_SOURCE_URL}" >> $GITHUB_ENV
         echo "USE_TARGET=${USE_TARGET}" >> $GITHUB_ENV
+        echo "USE_UPSTREAM_LIBT=$([ -d rsync/package/libtorrent-rasterbar_${{matrix.libtorrent}} ] && echo false || echo true)" >> $GITHUB_ENV
     - name: Check Version
       run: |
         curl -O "${{env.USE_SOURCE_URL}}/version.buildinfo"
@@ -133,10 +136,20 @@ jobs:
     - name: Clone qbt
       uses: actions/checkout@v3
       with:
-        ref: ${{env.USE_BRANCH}}
+        ref: ${{env.USE_QT_BRANCH}}
         repository: brvphoenix/SomePackages
+        fetch-depth: 1
         token: ${{ secrets.SUPER_TOKEN }}
-        path: SomePackages
+        path: qt_repo
+    - name: Clone libt
+      if: ${{ fromJson(env.USE_UPSTREAM_LIBT) }}
+      uses: actions/checkout@v3
+      with:
+        ref: ${{env.USE_LIBT_BRANCH}}
+        repository: brvphoenix/SomePackages
+        fetch-depth: 1
+        token: ${{ secrets.SUPER_TOKEN }}
+        path: libt_repo
     - name: Build the Binary Files
       working-directory: ./build
       run: |
@@ -148,10 +161,9 @@ jobs:
         done
 
         mkdir -p package
-        cp -r ../SomePackages/qbittorrent/luci-app-qbittorrent package
-        cp -r ../SomePackages/qbittorrent/qt${{matrix.qt}}/* package
+        cp -r ../qt_repo/qbittorrent/{luci-app-qbittorrent,qbittorrent,qtbase,qttools} package
         # Use the libtorrent official latest commit
-        # cp -r ../SomePackages/qbittorrent/libtorrent-rasterbar_${{matrix.libtorrent}}/* package
+        # cp -r ../libt_repo/qbittorrent/libtorrent-rasterbar package
         cp -r ../auto-build/rsync/package/libtorrent-rasterbar_${{matrix.libtorrent}} package/libtorrent-rasterbar
         rm -r ../auto-build/rsync/package/libtorrent-rasterbar_*
         rsync -a ../auto-build/rsync/* ./
