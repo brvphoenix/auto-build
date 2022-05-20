@@ -4,31 +4,28 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      build:
+        description: 'Building pkgs'
+        required: true
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  create-release:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Clone Current Repository
-      uses: actions/checkout@v3
-    - name: Create Release
-      env:
-        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
-      run: |
-        tag_name=$(basename ${{github.ref}})
-        hub release create -d -t master -m "Release $tag_name" $tag_name
-  build_prep:
+  build-prep:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
+      draft: ${{ steps.create-draft.outcome }}
     steps:
     - name: Clone Current Repository
       uses: actions/checkout@v3
-    - id: set-matrix
+    - name: Format build matrix
+      id: set-matrix
       run: |
         matrix=
         for json_file in ./*.json; do
@@ -50,13 +47,22 @@ jobs:
         	done
         done
         echo "::set-output name=matrix::{\"include\":[${matrix}]}"
+    - name: Create draft
+      id: create-draft
+      if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
+      run: |
+        tag_name=$(basename ${{github.ref}})
+        [ "$(hub release --include-drafts | grep "${tag_name}" | wc -l)" -eq 0 ] || hub release delete "${tag_name}"
+        hub release create -d -t master -m "Release $tag_name" "${tag_name}"
   build-matrix:
     name: ${{matrix.link}}, ${{matrix.arch}}, qt${{matrix.qt}}, libtorrent_${{matrix.libtorrent}}
-    needs: [create-release, build_prep]
+    needs: build-prep
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.build_prep.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.build-prep.outputs.matrix) }}
     steps:
     - name: Clone Current Repository
       uses: actions/checkout@v3
@@ -151,10 +157,12 @@ jobs:
         token: ${{ secrets.SUPER_TOKEN }}
         path: libt_repo
     - name: Build the Binary Files
+      id: build-pkgs
+      if: ${{ needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true' }}
       working-directory: ./build
       run: |
         # Restore the modified feeds sources
-        for d in $([ -d feeds ] && ls feeds | cut -d . -f 1 | sort | uniq); do
+        for d in $([ ! -d feeds ] || ls feeds | cut -d . -f 1 | sort | uniq); do
         	cd feeds/$d;
         	git checkout .;
         	cd ../..;
@@ -225,6 +233,7 @@ jobs:
         make defconfig
         make package/luci-app-qbittorrent/compile V=sc -j$(nproc) BUILD_LOG=1
     - name: Pack all the flies
+      id: pack-all
       if: always()
       working-directory: ./build
       shell: bash
@@ -233,7 +242,10 @@ jobs:
         SAVED_NAME=${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}}
 
         # Compress the log files
-        XZ_OPT=-9 tar -cJvf ../${SAVED_NAME}.log.tar.xz logs
+        [ -d "./logs" ] && { \
+        	XZ_OPT=-9 tar -cJvf ../${SAVED_NAME}.log.tar.xz logs; \
+        	echo "::set-output name=logs::true"; \
+        } || echo "::set-output name=logs::false"
 
         # The save path of the packages
         PKGS_DIR=${SAVED_NAME}/pkgs
@@ -241,23 +253,23 @@ jobs:
         mkdir -p ${PKGS_DIR} ${KEY_DIR}
 
         if [ "${{matrix.link}}" = "static" ]; then
-          find bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${PKGS_DIR} \;
+        	[ ! -d "bin/packages" ] || find bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${PKGS_DIR} \;
         else
-          find bin/packages -type f \( \
-            -iname libqt${{matrix.qt}}* -or \
-            -iname  *torrent*.ipk -or \
-            -iname libopenssl1* -or \
-            -iname boost_* -or \
-            -iname boost-system* -or \
-            -iname libdouble-conversion* -or \
-            -iname libpcre2-16* -or \
-            -iname zlib_* \
-          \) -exec cp -f {} ${PKGS_DIR} \;
+        	[ ! -d "bin/packages" ] || find bin/packages -type f \( \
+        		-iname libqt${{matrix.qt}}* -or \
+        		-iname  *torrent*.ipk -or \
+        		-iname libopenssl1* -or \
+        		-iname boost_* -or \
+        		-iname boost-system* -or \
+        		-iname libdouble-conversion* -or \
+        		-iname libpcre2-16* -or \
+        		-iname zlib_* \
+        	\) -exec cp -f {} ${PKGS_DIR} \;
 
-          find bin/targets -type f \( \
-            -iname libstdcpp* -or \
-            -iname libatomic* \
-          \) -exec cp -f {} ${PKGS_DIR} \;
+        	[ ! -d "bin/targets" ] || find bin/targets -type f \( \
+        		-iname libstdcpp* -or \
+        		-iname libatomic* \
+        	\) -exec cp -f {} ${PKGS_DIR} \;
         fi
 
         # Add to repository
@@ -336,11 +348,13 @@ jobs:
         # openssl enc -d -aes-256-ctr -pbkdf2 -pass pass:123456 -in ../${SAVED_NAME}-keychain.bin  | tar -xz
 
         # Clean up the obsolete packages
-        scripts/dl_cleanup.py dl 2>&1 >/dev/null
+        [ ! -d "./dl" ] || scripts/dl_cleanup.py dl 2>&1 >/dev/null
         rm -rf dl/libtorrent-rasterbar-RC_${{matrix.libtorrent}}.tar.gz
 
         echo "SAVED_NAME=${SAVED_NAME}" >> $GITHUB_ENV
     - name: Upload Release Asset
+      id: upload-release
+      if: ${{ needs.build-prep.outputs.draft == 'success' }}
       env:
         GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
       run: |
@@ -349,27 +363,39 @@ jobs:
         cd auto-build
         hub release edit $tag_name -a ../${{ env.SAVED_NAME }}.tar.xz -m ""
         hub release edit $tag_name -a ../${{ env.SAVED_NAME }}-keychain.bin -m ""
+    - name: Upload the Pkgs
+      if: ${{ steps.upload-release.outcome == 'skipped' || steps.upload-release.outcome == 'failure' }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.SAVED_NAME }}-pkgs
+        path: ./${{ env.SAVED_NAME }}.tar.xz
+        if-no-files-found: error
     - name: Register QEMU
-      if: ${{ matrix.runtime_test }}
+      id: register-docker
+      if: ${{ matrix.runtime_test && steps.build-pkgs.outcome == 'success' }}
       run: |
         sudo docker run --rm --privileged aptman/qus -s -- -p
     - name: Build Docker container
-      if: ${{ matrix.runtime_test }}
+      id: build-docker
+      if: ${{ steps.register-docker.outcome == 'success' }}
       run: |
         sudo docker build -t test-container --build-arg ARCH=${{ env.RUN_ON_TARGET }} --build-arg BRANCH=openwrt-21.02 ./auto-build/docker
     - name: Test via Docker container
-      if: ${{ matrix.runtime_test }}
+      if: ${{ steps.build-docker.outcome == 'success' }}
       run: |
         sudo docker run --rm -v $GITHUB_WORKSPACE/build/${{ env.SAVED_NAME }}:/ci test-container
     - name: Upload the Logs
-      if: always()
+      if: ${{ steps.pack-all.outputs.logs == 'true' }}
       uses: actions/upload-artifact@v3
       with:
         name: ${{ env.SAVED_NAME }}-log
-        path: ./${{ env.SAVED_NAME }}.log.tar.xz
+        path: |
+          ./${{ env.SAVED_NAME }}.log.tar.xz
+          ${{ env.SAVED_NAME }}-keychain.bin
         if-no-files-found: error
   pre-release:
-    needs: [create-release, build-matrix]
+    if: ${{ needs.build-prep.outputs.draft == 'success' }}
+    needs: [build-prep, build-matrix]
     runs-on: ubuntu-latest
     steps:
     - name: Clone Current Repository
