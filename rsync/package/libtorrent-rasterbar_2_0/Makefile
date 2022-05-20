@@ -5,14 +5,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libtorrent-rasterbar
-PKG_VERSION:=2.0.5
-PKG_RELEASE:=$(AUTORELEASE)
+PKG_VERSION:=2.0.6
+PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/arvidn/libtorrent.git
-PKG_SOURCE_VERSION:=8e6e3c2d010f291ed526f2f3b964a9c04c699bda
-PKG_SOURCE_DATE:=2021-01-11
-PKG_MIRROR_HASH:=4ca86459ee67846a3d5ee4589957751828b781dddbc0fac3d997fe929e2806d3
+PKG_SOURCE_VERSION:=b075fdf76e337b3a5f0f3266ec10294c94906668
+PKG_SOURCE_DATE:=2021-05-16
+PKG_MIRROR_HASH:=d40ef4ede135b3377ebe1cb390a40fd61d1579f35550c139e185657600e0869c
 
 PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=COPYING
@@ -30,7 +30,7 @@ define Package/libtorrent-rasterbar
   CATEGORY:=Libraries
   TITLE:=C++ bittorrent library by Rasterbar Software
   URL:=https://www.libtorrent.org
-  DEPENDS:=+boost +boost-system +libatomic +libc +libgcc +libopenssl +libstdcpp +USE_GLIBC:libpthread
+  DEPENDS:=+boost +boost-system +libatomic +libgcc +libopenssl +libstdcpp
   ABI_VERSION:=2.0
 endef
 

@@ -64,9 +64,9 @@ jobs:
         path: auto-build
     - name: Install Dependencies
       run: |
-        sudo -E apt-get update
-        sudo -E apt-get -y install build-essential curl flex gawk git jq libelf-dev libncurses5-dev \
-                           libssl-dev python python3 subversion time unzip wget xz-utils zlib1g-dev
+        sudo -E apt update
+        sudo -E apt -y install build-essential curl flex gawk git jq libncurses5-dev \
+        			libssl-dev python3 python3-distutils time wget xz-utils zlib1g-dev
     - name: Initialize Environment
       working-directory: ./auto-build
       run: |
@@ -356,7 +356,7 @@ jobs:
     - name: Build Docker container
       if: ${{ matrix.runtime_test }}
       run: |
-        sudo docker build -t test-container --build-arg ARCH=${{ env.RUN_ON_TARGET }} --build-arg BRANCH=21.02.2 ./auto-build/docker
+        sudo docker build -t test-container --build-arg ARCH=${{ env.RUN_ON_TARGET }} --build-arg BRANCH=openwrt-21.02 ./auto-build/docker
     - name: Test via Docker container
       if: ${{ matrix.runtime_test }}
       run: |
