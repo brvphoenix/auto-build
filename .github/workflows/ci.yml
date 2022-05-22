@@ -72,7 +72,7 @@ jobs:
       run: |
         sudo -E apt update
         sudo -E apt -y install build-essential curl flex gawk git jq libncurses5-dev \
-        			libssl-dev python3 python3-distutils time wget xz-utils zlib1g-dev
+        			libssl-dev python3 python3-distutils time xz-utils zlib1g-dev
     - name: Initialize Environment
       working-directory: ./auto-build
       run: |
@@ -110,11 +110,21 @@ jobs:
         echo "USE_UPSTREAM_LIBT=$([ -d rsync/package/libtorrent-rasterbar_${{matrix.libtorrent}} ] && echo false || echo true)" >> $GITHUB_ENV
     - name: Check Version
       run: |
-        curl -O "${{env.USE_SOURCE_URL}}/version.buildinfo"
-        curl -O "${{env.USE_SOURCE_URL}}/feeds.buildinfo"
-        [ -e "version.buildinfo" ] && version="$(echo $(cat version.buildinfo))" || version="${{ github.run_id }}"
-        [ -e "feeds.buildinfo" ] && feeds="$(echo $(md5sum feeds.buildinfo | cut -d ' ' -f 1))" || feeds="${{ github.run_id }}"
-        echo "USE_SDK_VERSION=${version}" >> $GITHUB_ENV
+        # SDK info
+        http_code=$(curl -fksILZ -o /dev/null -w %{http_code} --compressed ${{env.USE_SOURCE_URL}}/version.buildinfo)
+        echo $http_code
+        [ "http_code" != "404" ] && \
+        sdk_ver="$(curl -ksLZ --compressed ${{env.USE_SOURCE_URL}}/version.buildinfo)" || \
+        sdk_ver="$(echo ${{ github.run_id }})"
+
+        # Feeds info
+        http_code="$(curl -fksILZ -o /dev/null -w %{http_code} --compressed ${{env.USE_SOURCE_URL}}/feeds.buildinfo)"
+        echo $http_code
+        [ "http_code" != "404" ] && \
+        feeds="$(curl -ksLZ --compressed ${{env.USE_SOURCE_URL}}/feeds.buildinfo | md5sum | cut -d ' ' -f 1)" || \
+        feeds="$(echo ${{ github.run_id }})"
+
+        echo "USE_SDK_VERSION=${sdk_ver}" >> $GITHUB_ENV
         echo "USE_FEEDS_VERSION=${feeds}" >> $GITHUB_ENV
     - name: Cache SDK
       uses: actions/cache@v3
@@ -123,11 +133,10 @@ jobs:
         path: ./${{ env.USE_SDK_FILE }}
         key: SDK-${{ matrix.arch }}-${{env.USE_TARGET}}-${{ env.USE_SDK_VERSION }}
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
-      run: |
-        wget --no-check-certificate ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
+      run: curl -kLOZ --compressed ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
     - run: |
-        tar -xJf ${{ env.USE_SDK_FILE }}
-        find ./ -maxdepth 1 -type d -iname 'openwrt-sdk*' -exec mv {} build \;
+        mkdir -p build
+        tar -xJf ${{ env.USE_SDK_FILE }} --strip-components=1 -C build
         rm -rf build/dl build/feeds
     - name: Cache feeds and downloaded source files
       uses: actions/cache@v3
