@@ -361,6 +361,8 @@ jobs:
         rm -rf dl/libtorrent-rasterbar-RC_${{matrix.libtorrent}}.tar.gz
 
         echo "SAVED_NAME=${SAVED_NAME}" >> $GITHUB_ENV
+        # hashFiles has different value with sha256sum
+        echo "::set-output name=hash::$(sha256sum ../${SAVED_NAME}.tar.xz | cut -d ' ' -f1)"
     - name: Upload Release Asset
       id: upload-release
       if: ${{ needs.build-prep.outputs.draft == 'success' }}
@@ -376,7 +378,7 @@ jobs:
       if: ${{ steps.upload-release.outcome == 'skipped' || steps.upload-release.outcome == 'failure' }}
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ env.SAVED_NAME }}-pkgs
+        name: ${{ env.SAVED_NAME }}-pkgs-${{steps.pack-all.outputs.hash}}
         path: ./${{ env.SAVED_NAME }}.tar.xz
         if-no-files-found: error
     - name: Register QEMU
@@ -397,7 +399,7 @@ jobs:
       if: ${{ steps.pack-all.outputs.logs == 'true' }}
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ env.SAVED_NAME }}-log
+        name: ${{ env.SAVED_NAME }}-log-${{steps.pack-all.outputs.hash}}
         path: |
           ./${{ env.SAVED_NAME }}.log.tar.xz
           ${{ env.SAVED_NAME }}-keychain.bin
