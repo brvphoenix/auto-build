@@ -358,7 +358,7 @@ jobs:
 
         # Clean up the obsolete packages
         [ ! -d "./dl" ] || scripts/dl_cleanup.py dl 2>&1 >/dev/null
-        rm -rf dl/libtorrent-rasterbar-RC_${{matrix.libtorrent}}.tar.gz
+        rm -rf dl/libtorrent-rasterbar-*.tar.gz
 
         echo "SAVED_NAME=${SAVED_NAME}" >> $GITHUB_ENV
         # hashFiles has different value with sha256sum
