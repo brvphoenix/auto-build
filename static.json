@@ -6,7 +6,7 @@
 		},
 		"QT_VERSION": {
 			"5": "qt5-backport",
-			"6": "qt-6.3"
+			"6": "master"
 		}
 	},
 	"openwrt": {
