@@ -25,10 +25,10 @@ on:
         default: 'all'
         type: choice
         options:
-        - aarch64
+        - arc
         - arm
-        - x86
-        - mips
+        - i386
+        - powerpc
         - all
       qt:
         description: 'QT version'

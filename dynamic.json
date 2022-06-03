@@ -14,39 +14,47 @@
 		"USE_DOMAIN": "downloads.openwrt.org",
 		"USE_RELEASE": "releases",
 		"USE_VERSION": "22.03.3",
-		"x86_64": {
-			"USE_TARGET": "x86-64",
-			"RUNTIME_TEST": true
-		},
-		"mips_24kc": {
-			"USE_TARGET": "malta-be",
-			"RUNTIME_TEST": true
-		},
-		"mipsel_24kc": {
-			"USE_TARGET": "ramips-mt7621"
-		},
-		"arm_cortex-a9": {
-			"USE_TARGET": "bcm53xx-generic",
+		"arm_arm1176jzf-s_vfp": {
+			"USE_TARGET": "bcm27xx-bcm2708",
 			"RUNTIME_TEST": true,
 			"RUN_ON_TARGET": "armvirt-32"
 		},
-		"arm_cortex-a7_neon-vfpv4": {
-			"USE_TARGET": "sunxi-cortexa7",
+		"arm_arm926ej-s": {
+			"USE_TARGET": "mxs-generic",
+			"USE_UNIQUE": true,
 			"RUNTIME_TEST": true,
 			"RUN_ON_TARGET": "armvirt-32"
 		},
-		"arm_cortex-a9_vfpv3-d16": {
-			"USE_TARGET": "mvebu-cortexa9",
+		"arm_xscale": {
+			"USE_TARGET": "kirkwood-generic",
+			"USE_UNIQUE": true,
 			"RUNTIME_TEST": true,
 			"RUN_ON_TARGET": "armvirt-32"
 		},
-		"arm_cortex-a15_neon-vfpv4": {
-			"USE_TARGET": "armvirt-32",
+		"arc_arc700": {
+			"USE_TARGET": "arc770-generic"
+		},
+		"arc_archs": {
+			"USE_TARGET": "archs38-generic"
+		},
+		"arm_fa526": {
+			"USE_TARGET": "gemini-generic",
+			"USE_UNIQUE": true,
+			"RUN_SKIP": true
+		},
+		"i386_pentium-mmx": {
+			"USE_TARGET": "x86-geode",
 			"RUNTIME_TEST": true
 		},
-		"aarch64_cortex-a53": {
-			"USE_TARGET": "armvirt-64",
+		"i386_pentium4": {
+			"USE_TARGET": "x86-generic",
 			"RUNTIME_TEST": true
+		},
+		"powerpc_464fp": {
+			"USE_TARGET": "apm821xx-nand"
+		},
+		"powerpc_8540": {
+			"USE_TARGET": "mpc85xx-p1010"
 		}
 	}
 }
