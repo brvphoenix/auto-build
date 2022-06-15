@@ -6,7 +6,7 @@
 		},
 		"QT_VERSION": {
 			"5": "qt5-backport",
-			"6": "master"
+			"6": "perf"
 		}
 	},
 	"openwrt": {
@@ -15,56 +15,36 @@
 		"USE_RELEASE": "releases",
 		"USE_VERSION": "21.02.3",
 		"x86_64": {
-			"USE_MAJOR_TARGET": "x86",
-			"USE_MINOR_TARGET": "64",
-			"USE_GCC": "8.4.0",
+			"USE_TARGET": "x86-64",
 			"RUNTIME_TEST": true
 		},
 		"mips_24kc": {
-			"USE_MAJOR_TARGET": "malta",
-			"USE_MINOR_TARGET": "be",
-			"USE_GCC": "8.4.0"
+			"USE_TARGET": "malta-be"
 		},
 		"mipsel_24kc": {
-			"USE_MAJOR_TARGET": "ramips",
-			"USE_MINOR_TARGET": "mt7621",
-			"USE_GCC": "8.4.0"
+			"USE_TARGET": "ramips-mt7621"
 		},
 		"arm_cortex-a9": {
-			"USE_MAJOR_TARGET": "bcm53xx",
-			"USE_MINOR_TARGET": "generic",
-			"USE_GCC": "8.4.0",
-			"USE_EABI": true,
+			"USE_TARGET": "bcm53xx-generic",
 			"RUNTIME_TEST": true,
 			"RUN_ON_TARGET": "armvirt-32"
 		},
 		"arm_cortex-a7_neon-vfpv4": {
-			"USE_MAJOR_TARGET": "sunxi",
-			"USE_MINOR_TARGET": "cortexa7",
-			"USE_GCC": "8.4.0",
-			"USE_EABI": true,
+			"USE_TARGET": "sunxi-cortexa7",
 			"RUNTIME_TEST": true,
 			"RUN_ON_TARGET": "armvirt-32"
 		},
 		"arm_cortex-a9_vfpv3-d16": {
-			"USE_MAJOR_TARGET": "mvebu",
-			"USE_MINOR_TARGET": "cortexa9",
-			"USE_GCC": "8.4.0",
-			"USE_EABI": true,
+			"USE_TARGET": "mvebu-cortexa9",
 			"RUNTIME_TEST": true,
 			"RUN_ON_TARGET": "armvirt-32"
 		},
 		"arm_cortex-a15_neon-vfpv4": {
-			"USE_MAJOR_TARGET": "armvirt",
-			"USE_MINOR_TARGET": "32",
-			"USE_GCC": "8.4.0",
-			"USE_EABI": true,
+			"USE_TARGET": "armvirt-32",
 			"RUNTIME_TEST": true
 		},
 		"aarch64_cortex-a53": {
-			"USE_MAJOR_TARGET": "armvirt",
-			"USE_MINOR_TARGET": "64",
-			"USE_GCC": "8.4.0",
+			"USE_TARGET": "armvirt-64",
 			"RUNTIME_TEST": true
 		}
 	}

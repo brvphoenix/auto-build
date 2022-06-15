@@ -10,6 +10,15 @@ on:
         description: 'Building pkgs'
         required: true
         type: boolean
+      type:
+        description: 'Building type'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - dynamic
+        - static
+        - all
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -24,40 +33,43 @@ jobs:
     steps:
     - name: Clone Current Repository
       uses: actions/checkout@v3
+    - name: Install Dependencies
+      run: |
+        [ -n "$(command -v jq)" ] || {
+        	sudo -E apt update
+        	sudo -E apt -y install jq
+        }
     - name: Format build matrix
       id: set-matrix
       run: |
-        matrix=
+        matrix='[]'
         for json_file in ./*.json; do
-        	libt_ver="$(jq -r '.qbittorrent.LIBTORRENT_VERSION? | to_entries[]? | .key?' ${json_file})"
-        	qt_ver="$(jq -r '.qbittorrent.QT_VERSION? | to_entries[]? | .key?' ${json_file})"
         	json_file_name=$(basename $json_file)
         	link=${json_file_name%.*}
-        	architectures=$(jq -r '.openwrt | to_entries[] | select((.value | type) == "object") | .key' ${json_file})
-        	for arch in $architectures; do
-        		if [ "$(jq -r '.openwrt["'$arch'"].RUN_SKIP? // false' ${json_file})" = "false" ]; then
-        			runtime_test=$(jq -r '.openwrt["'$arch'"].RUNTIME_TEST? // false' ${json_file})
-        			for libtorrent in ${libt_ver}; do
-        				for qt in ${qt_ver}; do
-        					[ -z "${matrix}" ] ||  matrix="${matrix},"
-        					matrix="${matrix}{\"arch\":\"${arch}\",\"link\":\"${link}\",\"libtorrent\":\"${libtorrent}\",\"qt\":\"${qt}\",\"runtime_test\":${runtime_test}}"
-        				done
+        	[ -z "${{ github.event.inputs.type }}" ] || [ "${{ github.event.inputs.type }}" = "all" ] || [ "${{ github.event.inputs.type }}" = "${link}" ] || continue;
+        	[ "$(jq -r '.openwrt.RUN_SKIP? // false' ${json_file})" = "false" ] || continue;
+        	for arch in $(jq -r '.openwrt | to_entries[] | select((.value | type) == "object") | .key' ${json_file}); do
+        		[ "$(jq -r '.openwrt."'$arch'".RUN_SKIP? // false' ${json_file})" = "false" ] || continue;
+        		runtime_test=$(jq -r '.openwrt."'$arch'".RUNTIME_TEST? // false' ${json_file})
+        		for libtorrent in $(jq -r '.qbittorrent.LIBTORRENT_VERSION? | to_entries[]? | .key?' ${json_file}); do
+        			for qt in $(jq -r '.qbittorrent.QT_VERSION? | to_entries[]? | .key?' ${json_file}); do
+        				matrix="$(echo $matrix | jq -c '. += [{libtorrent:"'${libtorrent}'",qt:"'${qt}'",link:"'${link}'",arch:"'${arch}'",runtime_test:'${runtime_test}'}]')"
         			done
-        		fi
+        		done
         	done
         done
-        echo "::set-output name=matrix::{\"include\":[${matrix}]}"
+        [ "${matrix}" != "[]" ] || exit 1
+        echo "::set-output name=matrix::{\"include\":${matrix}}"
     - name: Create draft
       id: create-draft
       if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
       env:
-        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        tag_name=$(basename ${{github.ref}})
-        [ "$(hub release --include-drafts | grep "${tag_name}" | wc -l)" -eq 0 ] || hub release delete "${tag_name}"
-        hub release create -d -t master -m "Release $tag_name" "${tag_name}"
+        [ "$(hub release --include-drafts | grep "${GITHUB_REF_NAME}" | wc -l)" -eq 0 ] || hub release delete "${GITHUB_REF_NAME}"
+        hub release create -d -t master -m "Release ${GITHUB_REF_NAME}" "${GITHUB_REF_NAME}"
   build-matrix:
-    name: ${{matrix.link}}, ${{matrix.arch}}, qt${{matrix.qt}}, libtorrent_${{matrix.libtorrent}}
+    name: ${{ matrix.link }}, ${{ matrix.arch }}, qt${{ matrix.qt }}, libtorrent_${{ matrix.libtorrent }}
     needs: build-prep
     runs-on: ubuntu-latest
     strategy:
@@ -68,6 +80,7 @@ jobs:
       uses: actions/checkout@v3
       with:
         path: auto-build
+        persist-credentials: false
     - name: Install Dependencies
       run: |
         sudo -E apt update
@@ -76,83 +89,96 @@ jobs:
     - name: Initialize Environment
       working-directory: ./auto-build
       run: |
-        JSON_FILE=./${{matrix.link}}.json
+        JSON_FILE=./${{ matrix.link }}.json
 
-        for item in $(jq -r '.openwrt | keys[]' ${JSON_FILE}); do
-        	if [ "$(jq -r '.openwrt["'$item'"] | type' ${JSON_FILE})" = "string" ]; then
-        		eval ${item}=$(jq -r '.openwrt["'$item'"]' ${JSON_FILE})
-        	fi
+        for item in $(jq -r '.openwrt | to_entries[] | select(.value | type == "string") | "\(.key)=\(.value)"' ${JSON_FILE}); do
+        	eval "${item}"
         done
 
-        for option in $(jq -r '.openwrt["${{ matrix.arch }}"] | keys[]' ${JSON_FILE}); do
-        	eval ${option}=$(jq -r '.openwrt["${{ matrix.arch }}"]["'$option'"]' ${JSON_FILE})
+        for option in $(jq -r '.openwrt."${{ matrix.arch }}" | to_entries[] | "\(.key)=\(.value)"' ${JSON_FILE}); do
+        	eval "${option}"
         done
 
         USE_SOURCE_URL=${USE_PROTOCOL}://${USE_DOMAIN}/${USE_RELEASE}
-        SDK_FILE=openwrt-sdk
+        SDK_FILE_LEADING=openwrt-sdk
 
         if [ "${USE_RELEASE}" = "releases" ]; then
           USE_SOURCE_URL=${USE_SOURCE_URL}/${USE_VERSION}
-          SDK_FILE=${SDK_FILE}-${USE_VERSION}
+          SDK_FILE_LEADING=${SDK_FILE_LEADING}-${USE_VERSION}
         fi
 
-        USE_SOURCE_URL=${USE_SOURCE_URL}/targets/${USE_MAJOR_TARGET}/${USE_MINOR_TARGET}
-        USE_TARGET=${USE_MAJOR_TARGET}$([ "${USE_UNIQUE}" = "true" ] || echo -${USE_MINOR_TARGET})
-        USE_EXTENSION=$([ "${USE_EABI}" != "true" ] || echo _eabi)
-        SDK_FILE=${SDK_FILE}-${USE_TARGET}_gcc-${USE_GCC}_${USE_LIBC:-musl}${USE_EXTENSION}.Linux-x86_64.tar.xz
+        SDK_FILE_LEADING="${SDK_FILE_LEADING}-$([ "${USE_UNIQUE}" = "true" ] && echo ${USE_TARGET} | cut -d '-' -f1 || echo ${USE_TARGET})_gcc"
+        USE_SOURCE_URL="${USE_SOURCE_URL}/targets/$(echo ${USE_TARGET} | tr '-' '/')"
+
+        curl  -ksLOZ --compressed ${USE_SOURCE_URL}/sha256sums
+        USE_SDK_SHA256SUM=$(grep -i "${SDK_FILE_LEADING}*" sha256sums | cut -d " " -f1)
+        USE_SDK_FILE=$(grep -i "${SDK_FILE_LEADING}*" sha256sums | cut -d "*" -f2)
+        [ -n "${USE_SDK_FILE}" ] || exit 1;
 
         echo "RUN_ON_TARGET=${RUN_ON_TARGET:-${USE_TARGET}}" >> $GITHUB_ENV
-        echo "USE_LIBT_BRANCH=$(jq -r '.qbittorrent.LIBTORRENT_VERSION?["${{matrix.libtorrent}}"]' ${JSON_FILE})" >> $GITHUB_ENV
-        echo "USE_QT_BRANCH=$(jq -r '.qbittorrent.QT_VERSION?["${{matrix.qt}}"]' ${JSON_FILE})" >> $GITHUB_ENV
-        echo "USE_SDK_FILE=${SDK_FILE}" >> $GITHUB_ENV
+        echo "USE_SDK_FILE=${USE_SDK_FILE}" >> $GITHUB_ENV
+        echo "USE_SDK_SHA256SUM=${USE_SDK_SHA256SUM}" >> $GITHUB_ENV
         echo "USE_SOURCE_URL=${USE_SOURCE_URL}" >> $GITHUB_ENV
-        echo "USE_TARGET=${USE_TARGET}" >> $GITHUB_ENV
-        echo "USE_UPSTREAM_LIBT=$([ -d rsync/package/libtorrent-rasterbar_${{matrix.libtorrent}} ] && echo false || echo true)" >> $GITHUB_ENV
-    - name: Check Version
-      run: |
+
+        # QBT source and libtorrent source info
+        QBT_BRANCH=$(jq -r '.qbittorrent.QT_VERSION?."${{ matrix.qt }}"' ${JSON_FILE})
+        USE_QBT_HASH="$(git ls-remote https://${GITHUB_REPOSITORY_OWNER}:${{ secrets.SUPER_TOKEN }}@github.com/${GITHUB_REPOSITORY_OWNER}/SomePackages refs/heads/${QBT_BRANCH} | cut -f1)"
+        USE_UPSTREAM_LIBT=$([ -d rsync/package/libtorrent-rasterbar_${{ matrix.libtorrent }} ] && echo false || echo true)
+        LIBT_BRANCH=$(jq -r '.qbittorrent.LIBTORRENT_VERSION?."${{ matrix.libtorrent }}"' ${JSON_FILE})
+        [ "${USE_UPSTREAM_LIBT}" = "true" ] && \
+        	USE_LIBT_MAKE_HASH="$(git ls-remote https://${GITHUB_REPOSITORY_OWNER}:${{ secrets.SUPER_TOKEN }}@github.com/${GITHUB_REPOSITORY_OWNER}/SomePackages refs/heads/${LIBT_BRANCH} | cut -f1)" || \
+        	USE_LIBT_SRC_HASH="$(git ls-remote ${GITHUB_SERVER_URL}/arvidn/libtorrent refs/heads/RC_${{ matrix.libtorrent }} | cut -f1)"
+
+        echo "USE_QBT_HASH=${USE_QBT_HASH}" >> $GITHUB_ENV
+        echo "USE_LIBT_MAKE_HASH=${USE_LIBT_MAKE_HASH}" >> $GITHUB_ENV
+        echo "USE_LIBT_SRC_HASH=${USE_LIBT_SRC_HASH}" >> $GITHUB_ENV
+        echo "USE_UPSTREAM_LIBT=${USE_UPSTREAM_LIBT}" >> $GITHUB_ENV
+
+        # Check version info
         # SDK info
-        http_code=$(curl -fksILZ -o /dev/null -w %{http_code} --compressed ${{env.USE_SOURCE_URL}}/version.buildinfo)
+        http_code=$(curl -fksILZ -o /dev/null -w %{http_code} --compressed ${USE_SOURCE_URL}/version.buildinfo)
         echo $http_code
         [ "http_code" != "404" ] && \
-        sdk_ver="$(curl -ksLZ --compressed ${{env.USE_SOURCE_URL}}/version.buildinfo)" || \
-        sdk_ver="$(echo ${{ github.run_id }})"
+        	sdk_ver="$(curl -ksLZ --compressed ${USE_SOURCE_URL}/version.buildinfo)" || \
+        	sdk_ver="$(echo ${{ github.run_id }})"
 
         # Feeds info
-        http_code="$(curl -fksILZ -o /dev/null -w %{http_code} --compressed ${{env.USE_SOURCE_URL}}/feeds.buildinfo)"
-        echo $http_code
-        [ "http_code" != "404" ] && \
-        feeds="$(curl -ksLZ --compressed ${{env.USE_SOURCE_URL}}/feeds.buildinfo | md5sum | cut -d ' ' -f 1)" || \
-        feeds="$(echo ${{ github.run_id }})"
+        [ "${USE_RELEASE}" = "releases" ] && HEAD=v${USE_VERSION} || HEAD=HEAD
+        feeds="${feeds:-${USE_RELEASE}}-$(git ls-remote ${GITHUB_SERVER_URL}/openwrt/openwrt.git $HEAD | head -c 9)"
+        [ "${USE_RELEASE}" = "releases" ] && HEAD=openwrt-21.02 || HEAD=HEAD
+        feeds="${feeds:-${USE_RELEASE}}-$(git ls-remote ${GITHUB_SERVER_URL}/openwrt/packages.git $HEAD | head -c 9)"
+        feeds="${feeds:-${USE_RELEASE}}-$(git ls-remote ${GITHUB_SERVER_URL}/openwrt/luci.git $HEAD | head -c 9)"
 
         echo "USE_SDK_VERSION=${sdk_ver}" >> $GITHUB_ENV
         echo "USE_FEEDS_VERSION=${feeds}" >> $GITHUB_ENV
+
+        # Get the release number according the tag number
+        if [ "${GITHUB_REF}" = "refs/tags/${GITHUB_REF_NAME}" ]; then
+        	USE_RELEASE_NUMBER=$(git ls-remote --tags ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY} | cut -f2 | sed 's;refs/tags/;;g' | cut -d '-' -f1 | grep "$(echo ${GITHUB_REF_NAME} | cut -d '-' -f1)" | wc -l)
+        fi
+
+        echo "USE_RELEASE_NUMBER=${USE_RELEASE_NUMBER:-1}" >> $GITHUB_ENV
+
+        # Common name of the saved files
+        echo "SAVED_NAME=${{ matrix.arch }}-${{ matrix.link }}-qt${{ matrix.qt }}-libtorrent_${{ matrix.libtorrent }}" >> $GITHUB_ENV
     - name: Cache SDK
       uses: actions/cache@v3
       id: cache-sdk
       with:
         path: ./${{ env.USE_SDK_FILE }}
-        key: SDK-${{ matrix.arch }}-${{env.USE_TARGET}}-${{ env.USE_SDK_VERSION }}
+        key: ${{ env.USE_SDK_FILE }}-${{ env.USE_SDK_VERSION }}
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
       run: curl -kLOZ --compressed ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
     - run: |
+        [ "$(sha256sum ${{ env.USE_SDK_FILE }} | cut -d ' ' -f1)" = "${{ env.USE_SDK_SHA256SUM }}" ] || exit 1;
         mkdir -p build
         tar -xJf ${{ env.USE_SDK_FILE }} --strip-components=1 -C build
         rm -rf build/dl build/feeds
-    - name: Cache feeds and downloaded source files
-      uses: actions/cache@v3
-      with:
-        path: |
-          build/dl
-          build/feeds
-        key: source-${{matrix.link}}-${{ env.USE_FEEDS_VERSION }}
-        restore-keys: |
-          source-${{matrix.link}}-
-          source-
     - name: Clone qbt
       uses: actions/checkout@v3
       with:
-        ref: ${{env.USE_QT_BRANCH}}
-        repository: brvphoenix/SomePackages
+        ref: ${{ env.USE_QBT_HASH }}
+        repository: ${{ github.repository_owner }}/SomePackages
         fetch-depth: 1
         token: ${{ secrets.SUPER_TOKEN }}
         path: qt_repo
@@ -160,14 +186,43 @@ jobs:
       if: ${{ fromJson(env.USE_UPSTREAM_LIBT) }}
       uses: actions/checkout@v3
       with:
-        ref: ${{env.USE_LIBT_BRANCH}}
-        repository: brvphoenix/SomePackages
+        ref: ${{ env.USE_LIBT_MAKE_HASH }}
+        repository: ${{ github.repository_owner }}/SomePackages
         fetch-depth: 1
         token: ${{ secrets.SUPER_TOKEN }}
         path: libt_repo
+    - run: |
+        echo "USE_QT_VER=$(sed -n '/PKG_BASE:=/{N;s/PKG_BASE:=\([0-9.]\+\)\s\+PKG_BUGFIX:=\(\w\+\)/\1.\2/gp}' qt_repo/qbittorrent/qtbase/Makefile)" >> $GITHUB_ENV
+    - name: Cache feeds and downloaded source files (exclude Qt source)
+      uses: actions/cache@v3
+      with:
+        path: |
+          build/dl
+          build/feeds
+          !build/dl/qtbase-*.tar.xz
+          !build/dl/qttools-*.tar.xz
+        key: source-${{ matrix.link }}-${{ env.USE_FEEDS_VERSION }}
+        restore-keys: |
+          source-${{ matrix.link }}-
+          source-
+    - name: Cache Qt source
+      uses: actions/cache@v3
+      with:
+        path: |
+          build/dl/qtbase-*-src-${{ env.USE_QT_VER }}.tar.xz
+          build/dl/qttools-*-src-${{ env.USE_QT_VER }}.tar.xz
+        key: qt-${{ env.USE_QT_VER }}
+    - name: Cache binary
+      id: cache-bin
+      uses: actions/cache@v3
+      with:
+        path: |
+          ${{ env.SAVED_NAME }}.tar.xz
+          ${{ env.SAVED_NAME }}-keychain.bin
+        key: binary-${{ env.USE_RELEASE_NUMBER }}-${{ env.USE_SDK_FILE }}-${{ env.USE_SDK_VERSION }}-${{ env.USE_FEEDS_VERSION }}-${{ hashFiles('auto-build/rsync/**', '!auto-build/rsync/libtorrent_rasterbar*') }}-${{ env.USE_QBT_HASH }}-${{ env.USE_LIBT_SRC_HASH }}-${{ env.USE_LIBT_MAKE_HASH }}
     - name: Build the Binary Files
       id: build-pkgs
-      if: ${{ needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true' }}
+      if: ${{ (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true' }}
       working-directory: ./build
       run: |
         # Restore the modified feeds sources
@@ -176,114 +231,43 @@ jobs:
         	git checkout .;
         	cd ../..;
         done
-
-        mkdir -p package
-        cp -r ../qt_repo/qbittorrent/{luci-app-qbittorrent,qbittorrent,qtbase,qttools} package
-        # Use the libtorrent official latest commit
-        # cp -r ../libt_repo/qbittorrent/libtorrent-rasterbar package
-        cp -r ../auto-build/rsync/package/libtorrent-rasterbar_${{matrix.libtorrent}} package/libtorrent-rasterbar
-        rm -r ../auto-build/rsync/package/libtorrent-rasterbar_*
-        rsync -a ../auto-build/rsync/* ./
-
-        # Compatible with libtorrent RC_1_2
-        if [ "${{matrix.libtorrent}}" = "1_2" ] || [ "${{matrix.qt}}" = "5" ]; then
-        	sed -i 's/\(target_link_libraries(qbt_app PUBLIC "\)/\1-liconv /g' package/qbittorrent/patches/0012-fix-static-compile.patch
-        	sed -i 's/\(include \$(INCLUDE_DIR)\/cmake\.mk\)$/\1\ninclude \$(INCLUDE_DIR)\/nls\.mk/g' package/qbittorrent/Makefile
-        fi
-        # Make qmake compile in parallel (should be deleted when update to Qt6)
-        mv ../auto-build/test.mk package/qtbase
-        sed -i '/define Build\/Compile/i include ./test.mk' package/qtbase/Makefile
-
-        # use the github source
-        sed -i 's/git\.openwrt\.org\/openwrt\/openwrt/github\.com\/openwrt\/openwrt/g' ./feeds.conf.default
-        sed -i 's/git\.openwrt\.org\/feed\/packages/github\.com\/openwrt\/packages/g' ./feeds.conf.default
-        sed -i 's/git\.openwrt\.org\/project\/luci/github\.com\/openwrt\/luci/g' ./feeds.conf.default
-        sed -i 's/git\.openwrt\.org\/feed\/telephony/github\.com\/openwrt\/telephony/g' ./feeds.conf.default
-
-        # Use the stable release snapshot feeds sources (should upgrade if update the release version).
-        [ "${{matrix.link}}" = "dynamic" ] && sed -i 's/\(\.git\)\^\w\+/\1\;openwrt-21.02/g' ./feeds.conf.default
-
-        # Sync with the source
-        ./scripts/feeds update -a
-        rm -rf feeds/packages/libs/libtorrent-rasterbar
-
-        ./scripts/feeds update -i
-        ./scripts/feeds install -a
-
-        cat > .config <<EOF
-        # CONFIG_ALL_KMODS is not set
-        # CONFIG_ALL is not set
-        CONFIG_PACKAGE_luci-app-qbittorrent=y
-        CONFIG_QBT_REMOVE_GUI_TR=y
-        CONFIG_QBT_LANG-zh=y
-        CONFIG_LUCI_LANG_zh_Hans=y
-        EOF
-
-        [ "${{matrix.link}}" = "static" ] && {
-        	cat >> .config <<-EOF
-        		CONFIG_PACKAGE_libpcre2-16=y
-        		CONFIG_PACKAGE_boost=y
-        		CONFIG_PACKAGE_boost-system=y
-        		CONFIG_PACKAGE_libopenssl=y
-        		CONFIG_QT${{matrix.qt}}_OPENSSL_LINKED=y
-        		CONFIG_QT${{matrix.qt}}_STATIC=y
-        		# CONFIG_QT${{matrix.qt}}_SYSTEM_DC is not set
-        		CONFIG_QT${{matrix.qt}}_SYSTEM_PCRE2=y
-        		CONFIG_QT${{matrix.qt}}_SYSTEM_ZLIB=y
-        		CONFIG_QBT_STATIC_LINK=y
-        	EOF
-
-        	sed -i '/HOST_FPIC:=-fPIC/aFPIC:=-fPIC' rules.mk
-        	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' feeds/packages/libs/pcre2/Makefile
-        	sed -i '/(call BuildPackage,libpcre2)/i Package/libpcre2/install=true\nPackage/libpcre2-16/install=true\nPackage/libpcre2-32/install=true' feeds/packages/libs/pcre2/Makefile
-        	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' package/libtorrent-rasterbar/Makefile
-        	sed -i '/^define Package\/libtorrent-rasterbar$/{:a;N;/endef/!ba;s/\(endef\)/  BUILDONLY:=1\n\1/g}' package/libtorrent-rasterbar/Makefile
-        }
-        make defconfig
-        make package/luci-app-qbittorrent/compile V=sc -j$(nproc) BUILD_LOG=1
+        bash ../auto-build/build.sh "${{ matrix.qt }}" "${{ matrix.libtorrent }}" "${{ matrix.link }}" "${{ env.USE_RELEASE_NUMBER }}"
     - name: Pack all the flies
       id: pack-all
       if: always()
-      working-directory: ./build
       shell: bash
       run: |
-        # Common name of the saved files
-        SAVED_NAME=${{matrix.arch}}-${{matrix.link}}-qt${{matrix.qt}}-libtorrent_${{matrix.libtorrent}}
-
         # Compress the log files
-        [ -d "./logs" ] && { \
-        	XZ_OPT=-9 tar -cJvf ../${SAVED_NAME}.log.tar.xz logs; \
-        	echo "::set-output name=logs::true"; \
+        [ -d "build/logs" ] && { \
+        	cd build && XZ_OPT=-9 tar -cJvf ../${{ env.SAVED_NAME }}.log.tar.xz logs
+        	cd ..
+        	echo "::set-output name=logs::true"
         } || echo "::set-output name=logs::false"
 
+        if [ "${{ steps.cache-bin.outputs.cache-hit }}" = "true" ]; then
+        	tar -xJf ${{ env.SAVED_NAME }}.tar.xz
+        	exit 0;
+        fi
+
         # The save path of the packages
-        PKGS_DIR=${SAVED_NAME}/pkgs
-        KEY_DIR=${SAVED_NAME}/key
+        PKGS_DIR=${{ env.SAVED_NAME }}/pkgs
+        KEY_DIR=${{ env.SAVED_NAME }}/key
         mkdir -p ${PKGS_DIR} ${KEY_DIR}
 
-        if [ "${{matrix.link}}" = "static" ]; then
-        	[ ! -d "bin/packages" ] || find bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${PKGS_DIR} \;
+        if [ "${{ matrix.link }}" = "static" ]; then
+        	[ ! -d "build/bin/packages" ] || find build/bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${PKGS_DIR} \;
         else
-        	[ ! -d "bin/packages" ] || find bin/packages -type f \( \
-        		-iname libqt${{matrix.qt}}* -or \
-        		-iname  *torrent*.ipk -or \
-        		-iname libopenssl1* -or \
-        		-iname boost_* -or \
-        		-iname boost-system* -or \
-        		-iname libdouble-conversion* -or \
-        		-iname libpcre2-16* -or \
-        		-iname zlib_* \
-        	\) -exec cp -f {} ${PKGS_DIR} \;
+        	[ ! -d "build/bin/packages" ] || find build/bin/packages -type f -iname *.ipk -exec cp -f {} ${PKGS_DIR} \;
 
-        	[ ! -d "bin/targets" ] || find bin/targets -type f \( \
+        	[ ! -d "build/bin/targets" ] || find build/bin/targets -type f \( \
         		-iname libstdcpp* -or \
         		-iname libatomic* \
         	\) -exec cp -f {} ${PKGS_DIR} \;
         fi
 
         # Add to repository
-        STAGING_DIR_HOST=$(pwd)/staging_dir/host
-        SCRIPT_DIR=$(pwd)/scripts
+        STAGING_DIR_HOST=$(pwd)/build/staging_dir/host
+        SCRIPT_DIR=$(pwd)/build/scripts
         BUILD_KEY=qbt-key
         export MKHASH=${STAGING_DIR_HOST}/bin/mkhash
         export PATH=${STAGING_DIR_HOST}/bin:$PATH
@@ -301,7 +285,7 @@ jobs:
         usign -S -m "${PKGS_DIR}/Packages" -s "${BUILD_KEY}"
 
         # Generate the install script
-        cat > ${SAVED_NAME}/install.sh <<-EOF
+        cat > ${{ env.SAVED_NAME }}/install.sh <<-EOF
         	#!/bin/sh
         	work_dir=\$(pwd)
         	script_dir="\$( cd "\$( dirname "\$0" )" && pwd )"
@@ -348,42 +332,40 @@ jobs:
         EOF
 
         # Compress the pkgs
-        tar -cJf ../${SAVED_NAME}.tar.xz ${SAVED_NAME}
+        tar -cJf ${{ env.SAVED_NAME }}.tar.xz ${{ env.SAVED_NAME }}
 
         # Compress and encrypt the keychain
         tar -czvf - ${BUILD_KEY}.ucert ${BUILD_KEY}.pub ${BUILD_KEY} | \
-        openssl enc -aes-256-ctr -pbkdf2 -pass pass:${{ secrets.KEYCHAIN }} > ../${SAVED_NAME}-keychain.bin
+        openssl enc -aes-256-ctr -pbkdf2 -pass pass:${{ secrets.KEYCHAIN }} > ${{ env.SAVED_NAME }}-keychain.bin
 
-        # openssl enc -d -aes-256-ctr -pbkdf2 -pass pass:123456 -in ../${SAVED_NAME}-keychain.bin  | tar -xz
+        # openssl enc -d -aes-256-ctr -pbkdf2 -pass pass:123456 -in ${{ env.SAVED_NAME }}-keychain.bin  | tar -xz
 
         # Clean up the obsolete packages
-        [ ! -d "./dl" ] || scripts/dl_cleanup.py dl 2>&1 >/dev/null
-        rm -rf dl/libtorrent-rasterbar-*.tar.gz
+        [ ! -d "build/dl" ] || build/scripts/dl_cleanup.py build/dl 2>&1 >/dev/null
+        rm -rf build/dl/libtorrent-rasterbar-*.tar.gz
 
-        echo "SAVED_NAME=${SAVED_NAME}" >> $GITHUB_ENV
         # hashFiles has different value with sha256sum
-        echo "::set-output name=hash::$(sha256sum ../${SAVED_NAME}.tar.xz | cut -d ' ' -f1)"
+        echo "::set-output name=hash::$(sha256sum ${{ env.SAVED_NAME }}.tar.xz | cut -d ' ' -f1)"
     - name: Upload Release Asset
       id: upload-release
       if: ${{ needs.build-prep.outputs.draft == 'success' }}
       env:
-        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        [ -n "$(find build/${{ env.SAVED_NAME }} -type f -iname *qbittorrent*)" ] || exit 1
-        tag_name=$(basename ${{github.ref}})
+        [ -n "$(find ${{ env.SAVED_NAME }} -type f -iname *qbittorrent*)" ] || exit 1
         cd auto-build
-        hub release edit $tag_name -a ../${{ env.SAVED_NAME }}.tar.xz -m ""
-        hub release edit $tag_name -a ../${{ env.SAVED_NAME }}-keychain.bin -m ""
+        hub release edit "${GITHUB_REF_NAME}" -a ../${{ env.SAVED_NAME }}.tar.xz -m ""
+        hub release edit "${GITHUB_REF_NAME}" -a ../${{ env.SAVED_NAME }}-keychain.bin -m ""
     - name: Upload the Pkgs
-      if: ${{ steps.upload-release.outcome == 'skipped' || steps.upload-release.outcome == 'failure' }}
+      if: ${{ always() && steps.upload-release.outcome != 'success' }}
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ env.SAVED_NAME }}-pkgs-${{steps.pack-all.outputs.hash}}
+        name: ${{ env.SAVED_NAME }}-pkgs-${{ steps.pack-all.outputs.hash }}
         path: ./${{ env.SAVED_NAME }}.tar.xz
         if-no-files-found: error
     - name: Register QEMU
       id: register-docker
-      if: ${{ matrix.runtime_test && steps.build-pkgs.outcome == 'success' }}
+      if: ${{ matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true') }}
       run: |
         sudo docker run --rm --privileged aptman/qus -s -- -p
     - name: Build Docker container
@@ -394,12 +376,12 @@ jobs:
     - name: Test via Docker container
       if: ${{ steps.build-docker.outcome == 'success' }}
       run: |
-        sudo docker run --rm -v $GITHUB_WORKSPACE/build/${{ env.SAVED_NAME }}:/ci test-container
+        sudo docker run --rm -v $GITHUB_WORKSPACE/${{ env.SAVED_NAME }}:/ci test-container
     - name: Upload the Logs
-      if: ${{ steps.pack-all.outputs.logs == 'true' }}
+      if: ${{ always() && steps.pack-all.outputs.logs == 'true' }}
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ env.SAVED_NAME }}-log-${{steps.pack-all.outputs.hash}}
+        name: ${{ env.SAVED_NAME }}-log-${{ steps.pack-all.outputs.hash }}
         path: |
           ./${{ env.SAVED_NAME }}.log.tar.xz
           ${{ env.SAVED_NAME }}-keychain.bin
@@ -413,7 +395,6 @@ jobs:
       uses: actions/checkout@v3
     - name: Edit Release Status
       env:
-        GITHUB_TOKEN: ${{ secrets.SUPER_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        tag_name=$(basename ${{github.ref}})
-        hub release edit $tag_name -p --draft=false -m ""
+        hub release edit "${GITHUB_REF_NAME}" -p --draft=false -m ""
