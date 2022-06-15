@@ -14,6 +14,8 @@ cp -r ../qt_repo/qbittorrent/{luci-app-qbittorrent,qbittorrent,qtbase,qttools} p
 # cp -r ../libt_repo/qbittorrent/libtorrent-rasterbar package
 cp -r ../auto-build/rsync/package/libtorrent-rasterbar_${libt_ver} package/libtorrent-rasterbar
 rm -r ../auto-build/rsync/package/libtorrent-rasterbar_*
+# Use openssl when static building
+[ "${link_type}" = "static" ] || rm -rf ../auto-build/rsync/package/openssl
 
 rsync -a ../auto-build/rsync/* ./
 
@@ -27,6 +29,9 @@ if [ "${qt_ver}" = "5" ]; then
 	# Make qmake compile in parallel (should be deleted when update to Qt6)
 	mv ../auto-build/test.mk package/qtbase
 	sed -i '/define Build\/Compile/i include ./test.mk' package/qtbase/Makefile
+
+	# Only needed when use openssl 3.0.x
+	[ -d package/openssl ] && sed -i 's/\(ICONV_LIBS="-liconv"\)$/\1 \\\n\tOPENSSL_LIBS="-lssl -lcrypto -latomic"/' package/qtbase/Makefile
 fi
 
 # Pathes has not been contained in the upstream.
@@ -49,6 +54,9 @@ sed -i 's/git.openwrt\.org\/project\/luci/github.com\/openwrt\/luci/g' ./feeds.c
 ./scripts/feeds update -a
 # Use custom libtorrent-rasterbar
 rm -rf feeds/packages/libs/libtorrent-rasterbar
+
+# Use custom openssl
+[ -d package/openssl ] && rm -rf feeds/base/package/libs/openssl
 
 # Update the indexs
 ./scripts/feeds update -i
@@ -79,6 +87,7 @@ EOF
 
 	sed -i '/HOST_FPIC:=-fPIC/aFPIC:=-fPIC' rules.mk
 	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' feeds/packages/libs/pcre2/Makefile
+	sed -i 's/\(-DBUILD_STATIC_LIBS=\)OFF/\1ON/' feeds/packages/libs/pcre2/Makefile
 	sed -i '/(call BuildPackage,libpcre2)/i Package/libpcre2/install=true\nPackage/libpcre2-16/install=true\nPackage/libpcre2-32/install=true' feeds/packages/libs/pcre2/Makefile
 	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' package/libtorrent-rasterbar/Makefile
 	sed -i '/^define Package\/libtorrent-rasterbar$/{:a;N;/endef/!ba;s/\(endef\)/  BUILDONLY:=1\n\1/g}' package/libtorrent-rasterbar/Makefile
