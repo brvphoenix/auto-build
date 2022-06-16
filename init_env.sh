@@ -5,8 +5,6 @@ set -eET -o pipefail
 
 target_arch=$1
 link_type=$2
-qt_ver=$3
-libt_ver=$4
 
 # Parse json files
 JSON_FILE=./${link_type}.json
@@ -36,17 +34,6 @@ echo "RUN_ON_TARGET=${RUN_ON_TARGET:-${USE_TARGET}}" >> $GITHUB_ENV
 echo "USE_SDK_FILE=${USE_SDK_FILE}" >> $GITHUB_ENV
 echo "USE_SDK_SHA256SUM=${USE_SDK_SHA256SUM}" >> $GITHUB_ENV
 echo "USE_SOURCE_URL=${USE_SOURCE_URL}" >> $GITHUB_ENV
-
-# QBT source and libtorrent source info
-echo USE_QBT_REFS=$(jq -r '.qbittorrent.QT_VERSION?."'${qt_ver}'"' ${JSON_FILE}) >> $GITHUB_ENV
-
-LIBT_REFS=$(jq -r '.qbittorrent.LIBTORRENT_VERSION?."'${libt_ver}'" // empty' ${JSON_FILE})
-if [ -z "${LIBT_REFS}" -a -d "../auto-build/rsync/common/package/self/libtorrent-rasterbar_${libt_ver}" ]; then
-	echo "USE_LIBT_LOCAL=true" >> $GITHUB_ENV
-	echo USE_LIBT_HASH=$(git ls-remote ${GITHUB_SERVER_URL}/arvidn/libtorrent refs/heads/RC_${libt_ver} | head -c 10) >> $GITHUB_ENV
-else
-	echo "USE_LIBT_REFS=${LIBT_REFS}" >> $GITHUB_ENV
-fi
 
 # Openwrt tag for docker image
 USE_OPENWRT_BRANCH=openwrt-22.03
@@ -93,6 +80,3 @@ if [ "${RUNTIME_TEST}" = "true" ]; then
 		-H "Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/openwrtorg/rootfs/manifests/${RUN_ON_TARGET:-${USE_TARGET}}-${USE_OPENWRT_BRANCH}" \
 		| sed -n 's/docker-content-digest:\s\+sha256:\(\w\+\)/\1/gp' | xargs -i echo "USE_ROOTFS_HASH={}" >> $GITHUB_ENV || exit 1
 fi
-
-# Common name of the saved files
-echo "SAVED_NAME=${target_arch}-${link_type}-qt${qt_ver}-libtorrent_${libt_ver}" >> $GITHUB_ENV
