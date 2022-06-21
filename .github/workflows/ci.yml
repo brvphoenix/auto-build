@@ -197,12 +197,13 @@ jobs:
       uses: actions/cache@v3
       with:
         path: |
-          build/dl
-          build/feeds
+          build/dl/*
+          build/feeds/*
           !build/dl/qtbase-*.tar.xz
           !build/dl/qttools-*.tar.xz
-        key: source-${{ matrix.link }}-${{ env.USE_FEEDS_VERSION }}
+        key: source-${{ matrix.link }}-${{ env.USE_FEEDS_VERSION }}-${{ hashFiles('auto-build/rsync/**', '!auto-build/rsync/package/libtorrent-rasterbar_*') }}
         restore-keys: |
+          source-${{ matrix.link }}-${{ env.USE_FEEDS_VERSION }}-
           source-${{ matrix.link }}-
           source-
     - name: Cache Qt source
@@ -218,36 +219,37 @@ jobs:
       with:
         path: |
           ${{ env.SAVED_NAME }}.tar.xz
+          ${{ env.SAVED_NAME }}.log.tar.xz
           ${{ env.SAVED_NAME }}-keychain.bin
-        key: binary-${{ env.USE_RELEASE_NUMBER }}-${{ env.USE_SDK_FILE }}-${{ env.USE_SDK_VERSION }}-${{ env.USE_FEEDS_VERSION }}-${{ hashFiles('auto-build/rsync/**', '!auto-build/rsync/libtorrent_rasterbar*') }}-${{ env.USE_QBT_HASH }}-${{ env.USE_LIBT_SRC_HASH }}-${{ env.USE_LIBT_MAKE_HASH }}
+        key: binary-${{ env.USE_RELEASE_NUMBER }}-${{ env.USE_SDK_FILE }}-${{ env.USE_SDK_VERSION }}-${{ env.USE_FEEDS_VERSION }}-${{ hashFiles('auto-build/rsync/**', '!auto-build/rsync/package/libtorrent-rasterbar_*') }}-${{ env.USE_QBT_HASH }}-${{ env.USE_LIBT_SRC_HASH }}-${{ env.USE_LIBT_MAKE_HASH }}
     - name: Build the Binary Files
       id: build-pkgs
       if: ${{ (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true' }}
       working-directory: ./build
       run: |
-        # Restore the modified feeds sources
-        for d in $([ ! -d feeds ] || ls feeds | cut -d . -f 1 | sort | uniq); do
-        	cd feeds/$d;
-        	git checkout .;
-        	cd ../..;
-        done
         bash ../auto-build/build.sh "${{ matrix.qt }}" "${{ matrix.libtorrent }}" "${{ matrix.link }}" "${{ env.USE_RELEASE_NUMBER }}"
     - name: Pack all the flies
       id: pack-all
       if: always()
       shell: bash
       run: |
+        # Check cache
+        if [ "${{ steps.cache-bin.outputs.cache-hit }}" = "true" ]; then
+        	[ -f "${{ env.SAVED_NAME }}.tar.xz" ] && {
+        		tar -xJf ${{ env.SAVED_NAME }}.tar.xz;
+        		echo "::set-output name=hash::$(sha256sum ${{ env.SAVED_NAME }}.tar.xz | cut -d ' ' -f1)";
+        	} || { echo "Not exist: ${{ env.SAVED_NAME }}.tar.xz"; exit 1; }
+
+        	[ -f "${{ env.SAVED_NAME }}.log.tar.xz" ] && echo "::set-output name=logs::true" || { echo "Not exist: ${{ env.SAVED_NAME }}.log.tar.xz"; exit 1; }
+        	exit 0
+        fi
+
         # Compress the log files
         [ -d "build/logs" ] && { \
         	cd build && XZ_OPT=-9 tar -cJvf ../${{ env.SAVED_NAME }}.log.tar.xz logs
         	cd ..
         	echo "::set-output name=logs::true"
         } || echo "::set-output name=logs::false"
-
-        if [ "${{ steps.cache-bin.outputs.cache-hit }}" = "true" ]; then
-        	tar -xJf ${{ env.SAVED_NAME }}.tar.xz
-        	exit 0;
-        fi
 
         # The save path of the packages
         PKGS_DIR=${{ env.SAVED_NAME }}/pkgs

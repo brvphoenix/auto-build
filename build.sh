@@ -8,14 +8,36 @@ libt_ver=$2
 link_type=$3
 rel_num=$4
 
+# Restore the modified feeds sources
+for d in $([ ! -d feeds ] || ls feeds | cut -d . -f 1 | sort | uniq); do
+	cd feeds/$d;
+	git checkout .;
+	cd ../..;
+done
+
+# use the github source
+sed -i 's/git.openwrt\.org\/openwrt\/openwrt/github.com\/openwrt\/openwrt/g' ./feeds.conf.default
+sed -i 's/git.openwrt\.org\/feed/github.com\/openwrt/g' ./feeds.conf.default
+sed -i 's/git.openwrt\.org\/project\/luci/github.com\/openwrt\/luci/g' ./feeds.conf.default
+
+# Use the stable release snapshot feeds sources (should upgrade if update the release version).
+[ "${link_type}" = "dynamic" ] && sed -i 's/\(\.git\)\^\w\+/\1\;openwrt-21.02/g' ./feeds.conf.default
+
+# Sync with the source
+./scripts/feeds update -a
+
+# Use custom libtorrent-rasterbar
+rm -rf feeds/packages/libs/libtorrent-rasterbar
+
+# Use custom openssl when static building
+[ "${link_type}" = "static" ] && rm -rf feeds/base/package/libs/openssl || rm -rf ../auto-build/rsync/package/openssl
+
 mkdir -p package
 cp -r ../qt_repo/qbittorrent/{luci-app-qbittorrent,qbittorrent,qtbase,qttools} package
 # Use the libtorrent official latest commit
 # cp -r ../libt_repo/qbittorrent/libtorrent-rasterbar package
 cp -r ../auto-build/rsync/package/libtorrent-rasterbar_${libt_ver} package/libtorrent-rasterbar
 rm -r ../auto-build/rsync/package/libtorrent-rasterbar_*
-# Use openssl when static building
-[ "${link_type}" = "static" ] || rm -rf ../auto-build/rsync/package/openssl
 
 rsync -a ../auto-build/rsync/* ./
 
@@ -35,32 +57,15 @@ if [ "${qt_ver}" = "5" ]; then
 fi
 
 # Pathes has not been contained in the upstream.
-curl -kLOZ --compressed ${GITHUB_SERVER_URL}/brvphoenix/qBittorrent/commit/daaf8a6f5.patch
+curl -kLOZ --compressed ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY_OWNER}/qBittorrent/commit/daaf8a6f5.patch
 mkdir -p package/qbittorrent/patches
 mv daaf8a6f5.patch package/qbittorrent/patches/0001-daaf8a6f5.patch
 
 # Update the release number according the tag number
 sed -i 's/^\(PKG_RELEASE\)=\S\+/\1='${rel_num:-1}'/g' package/qbittorrent/Makefile
 
-# use the github source
-sed -i 's/git.openwrt\.org\/openwrt\/openwrt/github.com\/openwrt\/openwrt/g' ./feeds.conf.default
-sed -i 's/git.openwrt\.org\/feed/github.com\/openwrt/g' ./feeds.conf.default
-sed -i 's/git.openwrt\.org\/project\/luci/github.com\/openwrt\/luci/g' ./feeds.conf.default
-
-# Use the stable release snapshot feeds sources (should upgrade if update the release version).
-[ "${link_type}" = "dynamic" ] && sed -i 's/\(\.git\)\^\w\+/\1\;openwrt-21.02/g' ./feeds.conf.default
-
-# Sync with the source
-./scripts/feeds update -a
-# Use custom libtorrent-rasterbar
-rm -rf feeds/packages/libs/libtorrent-rasterbar
-
-# Use custom openssl
-[ -d package/openssl ] && rm -rf feeds/base/package/libs/openssl
-
 # Update the indexs
-./scripts/feeds update -i
-./scripts/feeds install -a
+make package/symlinks-install
 
 cat > .config <<EOF
 # CONFIG_ALL_KMODS is not set
@@ -71,7 +76,7 @@ CONFIG_QBT_LANG-zh=y
 CONFIG_LUCI_LANG_zh_Hans=y
 EOF
 
-[ "${link_type}" = "static" ] && {
+if [ "${link_type}" = "static" ]; then
 	cat >> .config <<-EOF
 		CONFIG_PACKAGE_libpcre2-16=y
 		CONFIG_PACKAGE_boost=y
@@ -91,6 +96,6 @@ EOF
 	sed -i '/(call BuildPackage,libpcre2)/i Package/libpcre2/install=true\nPackage/libpcre2-16/install=true\nPackage/libpcre2-32/install=true' feeds/packages/libs/pcre2/Makefile
 	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' package/libtorrent-rasterbar/Makefile
 	sed -i '/^define Package\/libtorrent-rasterbar$/{:a;N;/endef/!ba;s/\(endef\)/  BUILDONLY:=1\n\1/g}' package/libtorrent-rasterbar/Makefile
-}
+fi
 make defconfig
-make package/luci-app-qbittorrent/compile V=sc -j$(nproc) BUILD_LOG=1
+make package/luci-app-qbittorrent/compile V=sc -j$(($(nproc)+1)) BUILD_LOG=1
