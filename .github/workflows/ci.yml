@@ -60,6 +60,7 @@ jobs:
       arch: ${{ steps.set-matrix.outputs.arch }}
       draft: ${{ steps.create-draft.outcome }}
       matrix: ${{ steps.set-matrix.outputs.matrix }}
+      pkg: ${{ steps.set-matrix.outputs.pkg }}
     steps:
     - name: Clone Current Repository
       uses: actions/checkout@v3
@@ -95,8 +96,10 @@ jobs:
         done
         [ "${matrix}" != "[]" ] || exit 1
         arch="$(echo "${matrix}" | jq -c 'map({("arch"): .arch, ("link"): .link}) | unique')"
+        pkg="$(echo "${matrix}" | jq -c 'map({("link"): .link, ("libtorrent"): .libtorrent, ("qt"): .qt, ("arch"): .arch}) | unique_by({link, qt, libtorrent})')"
         echo "matrix={\"include\":${matrix}}" >> $GITHUB_OUTPUT
         echo "arch={\"include\":${arch}}" >> $GITHUB_OUTPUT
+        echo "pkg={\"include\":${pkg}}" >> $GITHUB_OUTPUT
     - name: Create draft
       id: create-draft
       if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
@@ -105,7 +108,7 @@ jobs:
       run: |
         [ "$(hub release --include-drafts | grep "${GITHUB_REF_NAME}" | wc -l)" -eq 0 ] || hub release delete "${GITHUB_REF_NAME}"
         hub release create -d -t master -m "Release ${GITHUB_REF_NAME}" "${GITHUB_REF_NAME}"
-  pre-download:
+  sdk-download:
     name: ${{ matrix.link }}, ${{ matrix.arch }}
     needs: build-prep
     runs-on: ubuntu-latest
@@ -130,15 +133,14 @@ jobs:
     - name: Cache Env
       uses: actions/cache@v3
       with:
-        path: auto-build/env
-        key: env-${{ matrix.arch }}-${{ matrix.link }}-${{ github.run_id }}
-        restore-keys: |
-          env-${{ matrix.arch }}-${{ matrix.link }}-
+        path: auto-build/init_env
+        key: env-${{ matrix.arch }}-${{ matrix.link }}-${{ hashFiles('auto-build/init_env.sh') }}-${{ github.run_id }}
     - name: Initialize Environment
+      id: init
       working-directory: ./auto-build
       run: |
         bash ./init_env.sh "${{ matrix.arch }}" "${{ matrix.link }}"
-        cp $GITHUB_ENV env
+        cp $GITHUB_ENV init_env
     - name: Cache SDK
       uses: actions/cache@v3
       id: cache-sdk
@@ -149,9 +151,168 @@ jobs:
       run: |
         curl -kLOZ --compressed ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
         [ "$(sha256sum ${{ env.USE_SDK_FILE }} | cut -d ' ' -f1)" = "${{ env.USE_SDK_SHA256SUM }}" ] || exit 1;
+  pkg-download:
+    name: ${{ matrix.link }}, ${{ matrix.libtorrent }}, ${{ matrix.qt }}
+    needs: [build-prep, sdk-download]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.build-prep.outputs.pkg) }}
+    steps:
+    - name: Clone Current Repository
+      uses: actions/checkout@v3
+      with:
+        path: auto-build
+        persist-credentials: false
+    - name: Install Dependencies
+      env:
+          run_test: ${{ matrix.runtime_test }}
+      run: |
+        [ -n "$(command -v jq)" ] && [ -n "$(command -v curl)" ] || {
+        	sudo -E apt update
+        	sudo -E apt -y install jq curl
+        }
+        [ "$run_test" != "true" ] || sudo -E apt install skopeo
+    - name: Cache Init Env
+      uses: actions/cache@v3
+      with:
+        path: auto-build/init_env
+        key: env-${{ matrix.arch }}-${{ matrix.link }}-${{ hashFiles('auto-build/init_env.sh') }}-${{ github.run_id }}
+    - name: Cache Env
+      uses: actions/cache@v3
+      with:
+        path: auto-build/env
+        key: env-${{ matrix.link }}-${{ matrix.qt }}-${{ matrix.libtorrent }}-${{ matrix.arch }}-${{ github.run_id }}
+    - name: Initialize Environment
+      working-directory: ./auto-build
+      env:
+        SUPER_TOKEN: ${{ secrets.SUPER_TOKEN }}
+      run: |
+        ls -lha
+        if [ -f './init_env' ]; then
+        	cat ./init_env > $GITHUB_ENV
+        else
+        	bash ./init_env.sh "${{ matrix.arch }}" "${{ matrix.link }}"
+        fi
+
+        > ./env
+
+        # QBT source and libtorrent source info
+        JSON_FILE=./${{ matrix.link }}.json
+        echo USE_QBT_REFS=$(jq -r '.qbittorrent.QT_VERSION?."${{ matrix.qt }}"' ${JSON_FILE}) >> ./env
+
+        LIBT_REFS=$(jq -r '.qbittorrent.LIBTORRENT_VERSION?."${{ matrix.libtorrent }}" // empty' ${JSON_FILE})
+        if [ -z "${LIBT_REFS}" -a -d "../auto-build/rsync/common/package/self/libtorrent-rasterbar_${{ matrix.libtorrent }}" ]; then
+        	echo "USE_LIBT_LOCAL=true" >> ./env
+        	echo USE_LIBT_HASH=$(git ls-remote ${GITHUB_SERVER_URL}/arvidn/libtorrent refs/heads/RC_${{ matrix.libtorrent }} | head -c 10) >> ./env
+        else
+        	echo "USE_LIBT_REFS=${LIBT_REFS}" >> ./env
+        fi
+
+        cat ./env >> $GITHUB_ENV
+    - name: Cache SDK
+      uses: actions/cache@v3
+      id: cache-sdk
+      with:
+        path: ./${{ env.USE_SDK_FILE }}
+        key: ${{ matrix.link }}-${{ matrix.arch }}-${{ env.USE_SDK_VERSION }}
+    - if: steps.cache-sdk.outputs.cache-hit != 'true'
+      run: |
+        curl -kLOZ --compressed ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
+        [ "$(sha256sum ${{ env.USE_SDK_FILE }} | cut -d ' ' -f1)" = "${{ env.USE_SDK_SHA256SUM }}" ] || exit 1;
+    - run: |
+        mkdir -p build
+        XZ_OPT='-T0' tar -xJf "${USE_SDK_FILE}" --strip-components=1 -C build
+    - name: Cache feeds
+      id: cache-feeds
+      uses: actions/cache@v3
+      with:
+        path: |
+          build/feeds/*
+        key: feeds-${{ matrix.link }}-${{ env.USE_FEEDS_VERSION }}
+        restore-keys: |
+          feeds-${{ matrix.link }}-
+          feeds-
+    - name: Clone qbt
+      if: ${{ steps.cache-qbt.outputs.cache-hit != 'true' }}
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ env.USE_QBT_REFS }}
+        repository: ${{ github.repository_owner }}/SomePackages
+        fetch-depth: 1
+        token: ${{ secrets.SUPER_TOKEN }}
+        path: qt_repo
+    - name: Clone libt
+      if: env.USE_LIBT_LOCAL != 'true'
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ env.USE_LIBT_REFS }}
+        repository: ${{ github.repository_owner }}/SomePackages
+        fetch-depth: 1
+        token: ${{ secrets.SUPER_TOKEN }}
+        path: libt_repo
+    - name: Prepare required packages
+      run: |
+        bash ./auto-build/build_pre.sh "${{ matrix.qt }}" "${{ matrix.libtorrent }}" "${{ matrix.link }}"
+    - name: Prepare building
+      env:
+        IGNORE_UPDATE_FEEDS: ${{ steps.cache-feeds.outputs.cache-hit }}
+      working-directory: ./build
+      run: |
+        bash ../auto-build/build_conf.sh "${{ matrix.qt }}" "${{ matrix.link }}"
+    - if: env.USE_LIBT_HASH == ''
+      run: |
+        echo USE_LIBT_HASH=$(sed -n 's/PKG_HASH:=\(\w\+\)/\1/gp' ./mirror/package/self/libtorrent-rasterbar/Makefile | head -c 10)" >> $GITHUB_ENV
+    - run: |
+        echo "USE_QT_VER=$(sed -n '/PKG_BASE:=/{N;s/PKG_BASE:=\([0-9.]\+\)\s\+PKG_BUGFIX:=\(\w\+\)/\1.\2/gp}' ./mirror/package/self/qtbase/Makefile)" >> $GITHUB_ENV
+    - name: Cache downloaded source files (exclude Qt)
+      id: cache-src
+      uses: actions/cache@v3
+      with:
+        path: |
+          build/dl/*
+          !build/dl/qtbase-*.tar.xz
+          !build/dl/qttools-*.tar.xz
+        key: source-${{ matrix.link }}-${{ hashFiles(
+             'build/package/self/**',
+             '!build/package/self/libtorrent-rasterbar/**',
+             '!build/package/self/qtbase/**',
+             '!build/package/self/qttools/**',
+             'build/feeds/base/package/libs/zlib/**',
+             'build/feeds/packages/libs/boost/**',
+             'build/feeds/base/package/libs/openssl/**',
+             'build/feeds/packages/libs/pcre2/**'
+             ) }}
+        restore-keys: |
+          source-${{ matrix.link }}-
+          source-
+    - name: Cache Qt source
+      id: cache-qt
+      uses: actions/cache@v3
+      with:
+        path: |
+          build/dl/qtbase-*-src-${{ env.USE_QT_VER }}.tar.xz
+          build/dl/qttools-*-src-${{ env.USE_QT_VER }}.tar.xz
+        key: qt-${{ env.USE_QT_VER }}
+    - name: Download pkgs
+      if: ${{ steps.cache-src.outputs.cache-hit != 'true' || steps.cache-qt.outputs.cache-hit != 'true' }}
+      working-directory: ./build
+      run: |
+        # Disable downloading default installed packages
+        sed -i '/config \(DEFAULT_\|MODULE_DEFAULT_\|PACKAGE_\)/{:a;N;/\n$/!ba;/default \(y\|m\)/d}' Config-build.in
+
+        make defconfig
+        make package/download V=sc -j$(($(nproc)+1))
+        make package/qttools/download V=sc -j$(($(nproc)+1))
+
+        # Clean up the obsolete packages
+        if [ ! -d "dl" ]; then
+        	./scripts/dl_cleanup.py 2>&1 >/dev/null
+        	rm -rf dl/libtorrent-rasterbar-*.tar.gz
+        fi
   build-matrix:
     name: ${{ matrix.link }}, ${{ matrix.arch }}, qt${{ matrix.qt }}, libtorrent_${{ matrix.libtorrent }}
-    needs: [build-prep, pre-download]
+    needs: [build-prep, sdk-download, pkg-download]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -163,40 +324,43 @@ jobs:
         path: auto-build
         persist-credentials: false
     - name: Install Dependencies
-      env:
-          run_test: ${{ matrix.runtime_test }}
       run: |
         sudo -E apt update
-        sudo -E apt -y install build-essential curl flex gawk git jq libncurses5-dev \
-        			libssl-dev python3 python3-distutils xz-utils zlib1g-dev
-        [ "$run_test" != "true" ] || sudo -E apt install skopeo
-    - name: Cache Env
-      id: cache-env
+        sudo -E apt -y install \
+        	build-essential curl flex gawk git jq libncurses5-dev libssl-dev \
+        	python3 python3-distutils xz-utils zlib1g-dev
+    - name: Cache Arch Env
+      uses: actions/cache@v3
+      with:
+        path: auto-build/init_env
+        key: env-${{ matrix.arch }}-${{ matrix.link }}-${{ hashFiles('auto-build/init_env.sh') }}-${{ github.run_id }}
+        restore-keys: |
+          env-${{ matrix.arch }}-${{ matrix.link }}-
+    - name: Initialize Arch Environment
+      working-directory: ./auto-build
+      run: |
+        if [ -f './init_env' ]; then
+        	cat ./init_env >> $GITHUB_ENV
+        	rm ./init_env
+        else
+        	exit 1
+        fi
+    - name: Cache Pkg Env
       uses: actions/cache@v3
       with:
         path: auto-build/env
-        key: env-${{ matrix.arch }}-${{ matrix.link }}-${{ github.run_id }}
+        key: env-${{ matrix.link }}-${{ matrix.qt }}-${{ matrix.libtorrent }}-${{ matrix.arch }}-${{ github.run_id }}
         restore-keys: |
-          env-${{ matrix.arch }}-${{ matrix.link }}-
-    - name: Initialize Environment
+          env-${{ matrix.link }}-${{ matrix.qt }}-${{ matrix.libtorrent }}-${{ matrix.arch }}-
+          env-${{ matrix.link }}-${{ matrix.qt }}-${{ matrix.libtorrent }}-
+    - name: Initialize Pkg Environment
       working-directory: ./auto-build
       run: |
         if [ -f './env' ]; then
-        	cat ./env > $GITHUB_ENV
+        	cat ./env >> $GITHUB_ENV
+        	rm ./env
         else
-        	bash ./init_env.sh "${{ matrix.arch }}" "${{ matrix.link }}"
-        fi
-
-        # QBT source and libtorrent source info
-        JSON_FILE=./${{ matrix.link }}.json
-        echo USE_QBT_REFS=$(jq -r '.qbittorrent.QT_VERSION?."${{ matrix.qt }}"' ${JSON_FILE}) >> $GITHUB_ENV
-
-        LIBT_REFS=$(jq -r '.qbittorrent.LIBTORRENT_VERSION?."${{ matrix.libtorrent }}" // empty' ${JSON_FILE})
-        if [ -z "${LIBT_REFS}" -a -d "../auto-build/rsync/common/package/self/libtorrent-rasterbar_${{ matrix.libtorrent }}" ]; then
-        	echo "USE_LIBT_LOCAL=true" >> $GITHUB_ENV
-        	echo USE_LIBT_HASH=$(git ls-remote ${GITHUB_SERVER_URL}/arvidn/libtorrent refs/heads/RC_${{ matrix.libtorrent }} | head -c 10) >> $GITHUB_ENV
-        else
-        	echo "USE_LIBT_REFS=${LIBT_REFS}" >> $GITHUB_ENV
+        	exit 1
         fi
 
         # Common name of the saved files
@@ -234,7 +398,7 @@ jobs:
         token: ${{ secrets.SUPER_TOKEN }}
         path: qt_repo
     - name: Clone libt
-      if: ${{ env.USE_UPSTREAM_LIBT == 'true' && steps.cache-qbt.outputs.cache-hit != 'true' }}
+      if: env.USE_LIBT_LOCAL != 'true'
       uses: actions/checkout@v3
       with:
         ref: ${{ env.USE_LIBT_REFS }}
@@ -284,7 +448,7 @@ jobs:
           build/dl/qttools-*-src-${{ env.USE_QT_VER }}.tar.xz
         key: qt-${{ env.USE_QT_VER }}
     - name: Cache binary
-      if: needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true'
+      if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true')
       id: cache-bin
       uses: actions/cache@v3
       with:
