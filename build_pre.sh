@@ -1,12 +1,18 @@
 #!/bin/bash
 
-set -e
-set -o pipefail
+set -eET -o pipefail
+
+failure() {
+  echo "Failed at line $1: $2"
+}
+
+trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
+
+. "$GITHUB_ENV"
 
 qt_ver=$1
 libt_ver=$2
 link_type=$3
-rel_num=$4
 
 # Restore the modified feeds sources
 for d in $([ ! -d feeds ] || ls feeds | cut -d . -f 1 | sort | uniq); do
@@ -30,39 +36,39 @@ sed -i 's/git.openwrt\.org\/project\/luci/github.com\/openwrt\/luci/g' ./feeds.c
 rm -rf feeds/packages/libs/libtorrent-rasterbar
 
 # Use custom openssl when static building
-[ "${link_type}" = "static" ] && rm -rf feeds/base/package/libs/openssl || rm -rf ../auto-build/rsync/package/openssl
+[ "${link_type}" = "static" ] && rm -rf feeds/base/package/libs/openssl || rm -rf ../auto-build/rsync/package/self/openssl
 
-mkdir -p package
-cp -r ../qt_repo/qbittorrent/{luci-app-qbittorrent,qbittorrent,qtbase,qttools} package
+mkdir -p package/self
+cp -r ../qt_repo/qbittorrent/{luci-app-qbittorrent,qbittorrent,qtbase,qttools} package/self
 # Use the libtorrent official latest commit
-# cp -r ../libt_repo/qbittorrent/libtorrent-rasterbar package
-cp -r ../auto-build/rsync/package/libtorrent-rasterbar_${libt_ver} package/libtorrent-rasterbar
-rm -r ../auto-build/rsync/package/libtorrent-rasterbar_*
+# cp -r ../libt_repo/qbittorrent/libtorrent-rasterbar package/self
+cp -r ../auto-build/rsync/package/self/libtorrent-rasterbar_${libt_ver} package/self/libtorrent-rasterbar
+rm -r ../auto-build/rsync/package/self/libtorrent-rasterbar_*
 
 rsync -a ../auto-build/rsync/* ./
 
+# Update the release number according the tag number
+sed -i 's/^\(PKG_RELEASE\)=\S\+/\1='${USE_RELEASE_NUMBER:-1}'/g' package/self/qbittorrent/Makefile
+
 # Compatible with libtorrent RC_1_2
 if [ "${libt_ver}" = "1_2" ] || [ "${qt_ver}" = "5" ]; then
-	sed -i 's/\(target_link_libraries(qbt_app PUBLIC "\)/\1-liconv /g' package/qbittorrent/patches/0012-fix-static-compile.patch
-	sed -i 's/\(include \$(INCLUDE_DIR)\/cmake\.mk\)$/\1\ninclude \$(INCLUDE_DIR)\/nls\.mk/g' package/qbittorrent/Makefile
+	sed -i 's/\(target_link_libraries(qbt_app PUBLIC "\)/\1-liconv /g' package/self/qbittorrent/patches/0012-fix-static-compile.patch
+	sed -i 's/\(include \$(INCLUDE_DIR)\/cmake\.mk\)$/\1\ninclude \$(INCLUDE_DIR)\/nls\.mk/g' package/self/qbittorrent/Makefile
 fi
 
 if [ "${qt_ver}" = "5" ]; then
 	# Make qmake compile in parallel (should be deleted when update to Qt6)
-	mv ../auto-build/test.mk package/qtbase
-	sed -i '/define Build\/Compile/i include ./test.mk' package/qtbase/Makefile
+	mv ../auto-build/test.mk package/self/qtbase
+	sed -i '/define Build\/Compile/i include ./test.mk' package/self/qtbase/Makefile
 
 	# Only needed when use openssl 3.0.x
-	[ -d package/openssl ] && sed -i 's/\(ICONV_LIBS="-liconv"\)$/\1 \\\n\tOPENSSL_LIBS="-lssl -lcrypto -latomic"/' package/qtbase/Makefile
+	[ -d package/self/openssl ] && sed -i 's/\(ICONV_LIBS="-liconv"\)$/\1 \\\n\tOPENSSL_LIBS="-lssl -lcrypto -latomic"/' package/self/qtbase/Makefile
 fi
 
 # Pathes has not been contained in the upstream.
 curl -kLOZ --compressed ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY_OWNER}/qBittorrent/commit/daaf8a6f5.patch
-mkdir -p package/qbittorrent/patches
-mv daaf8a6f5.patch package/qbittorrent/patches/0001-daaf8a6f5.patch
-
-# Update the release number according the tag number
-sed -i 's/^\(PKG_RELEASE\)=\S\+/\1='${rel_num:-1}'/g' package/qbittorrent/Makefile
+mkdir -p package/self/qbittorrent/patches
+mv daaf8a6f5.patch package/self/qbittorrent/patches/0001-daaf8a6f5.patch
 
 # Update the indexs
 make package/symlinks-install
@@ -94,8 +100,6 @@ if [ "${link_type}" = "static" ]; then
 	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' feeds/packages/libs/pcre2/Makefile
 	sed -i 's/\(-DBUILD_STATIC_LIBS=\)OFF/\1ON/' feeds/packages/libs/pcre2/Makefile
 	sed -i '/(call BuildPackage,libpcre2)/i Package/libpcre2/install=true\nPackage/libpcre2-16/install=true\nPackage/libpcre2-32/install=true' feeds/packages/libs/pcre2/Makefile
-	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' package/libtorrent-rasterbar/Makefile
-	sed -i '/^define Package\/libtorrent-rasterbar$/{:a;N;/endef/!ba;s/\(endef\)/  BUILDONLY:=1\n\1/g}' package/libtorrent-rasterbar/Makefile
+	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' package/self/libtorrent-rasterbar/Makefile
+	sed -i '/^define Package\/libtorrent-rasterbar$/{:a;N;/endef/!ba;s/\(endef\)/  BUILDONLY:=1\n\1/g}' package/self/libtorrent-rasterbar/Makefile
 fi
-make defconfig
-make package/luci-app-qbittorrent/compile V=sc -j$(($(nproc)+1)) BUILD_LOG=1
