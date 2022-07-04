@@ -1,0 +1,39 @@
+From e7fd8ae2e3a41b8f8dc668f4f280a42381954c37 Mon Sep 17 00:00:00 2001
+From: Chocobo1 <Chocobo1@users.noreply.github.com>
+Date: Tue, 5 Oct 2021 13:41:46 +0800
+Subject: [PATCH] Guard against self assignment
+
+Fix up 212cdfc9cde240cb6ca2164d4eeb2a381c30eba8.
+---
+ src/ed25519/hasher512.cpp | 1 +
+ src/hasher.cpp            | 2 ++
+ 2 files changed, 3 insertions(+)
+
+--- a/src/ed25519/hasher512.cpp
++++ b/src/ed25519/hasher512.cpp
+@@ -108,6 +108,7 @@ namespace aux {
+ 
+ 	hasher512& hasher512::operator=(hasher512&& h) &
+ 	{
++		if (this == &h) return *this;
+ 		std::swap(m_context, h.m_context);
+ 		return *this;
+ 	}
+--- a/src/hasher.cpp
++++ b/src/hasher.cpp
+@@ -120,6 +120,7 @@ TORRENT_CRYPTO_NAMESPACE
+ 
+ 	hasher& hasher::operator=(hasher&& h) &
+ 	{
++		if (this == &h) return *this;
+ 		std::swap(m_context, h.m_context);
+ 		return *this;
+ 	}
+@@ -276,6 +277,7 @@ TORRENT_CRYPTO_NAMESPACE
+ 
+ 	hasher256& hasher256::operator=(hasher256&& h) &
+ 	{
++		if (this == &h) return *this;
+ 		std::swap(m_context, h.m_context);
+ 		return *this;
+ 	}

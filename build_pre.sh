@@ -47,6 +47,9 @@ rm -r ../auto-build/rsync/package/self/libtorrent-rasterbar_*
 
 rsync -a ../auto-build/rsync/* ./
 
+# Add no-deprecated when built with openssl 3.0.x, libtorrent RC_2_0 and static linkage.
+[ -d package/self/openssl ] && [ "${libt_ver}" = "2_0" ] && [ "${link_type}" = "static" ] && sed -i 's/\(OPENSSL_OPTIONS:=.*\)$/\1 no-deprecated/' package/self/openssl/Makefile
+
 # Update the release number according the tag number
 sed -i 's/^\(PKG_RELEASE\)=\S\+/\1='${USE_RELEASE_NUMBER:-1}'/g' package/self/qbittorrent/Makefile
 

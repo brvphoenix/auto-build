@@ -1,0 +1,22 @@
+--- a/src/ssl.cpp
++++ b/src/ssl.cpp
+@@ -177,7 +177,8 @@ namespace {
+ 		lifecycle()
+ 		{
+ 			// this is needed for openssl < 1.0 to decrypt keys created by openssl 1.0+
+-#if !defined(OPENSSL_API_COMPAT) || (OPENSSL_API_COMPAT < 0x10100000L)
++#if (!defined(OPENSSL_API_LEVEL) && (!defined(OPENSSL_API_COMPAT) || (OPENSSL_API_COMPAT < 0x10100000L))) \
++	|| (defined(OPENSSL_API_LEVEL) && (OPENSSL_API_LEVEL < 10001))
+ 			OpenSSL_add_all_algorithms();
+ #else
+ 			OPENSSL_init_crypto(OPENSSL_INIT_ADD_ALL_CIPHERS | OPENSSL_INIT_ADD_ALL_DIGESTS, nullptr);
+@@ -190,7 +191,8 @@ namespace {
+ // Changes between 1.0.2h and 1.1.0  [25 Aug 2016]
+ // - Most global cleanup functions are no longer required because they are handled
+ //   via auto-deinit. Affected function CRYPTO_cleanup_all_ex_data()
+-#if !defined(OPENSSL_API_COMPAT) || OPENSSL_API_COMPAT < 0x10100000L
++#if (!defined(OPENSSL_API_LEVEL) && (!defined(OPENSSL_API_COMPAT) || OPENSSL_API_COMPAT < 0x10100000L)) \
++	|| (defined(OPENSSL_API_LEVEL) && (OPENSSL_API_LEVEL < 10001))
+ #ifdef TORRENT_MACOS_DEPRECATED_LIBCRYPTO
+ #pragma clang diagnostic push
+ #pragma clang diagnostic ignored "-Wdeprecated-declarations"
