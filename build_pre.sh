@@ -92,10 +92,6 @@ EOF
 
 if [ "${link_type}" = "static" ]; then
 	cat >> .config <<-EOF
-		CONFIG_PACKAGE_libpcre2-16=y
-		CONFIG_PACKAGE_boost=y
-		CONFIG_PACKAGE_boost-system=y
-		CONFIG_PACKAGE_libopenssl=y
 		CONFIG_QT${qt_ver}_OPENSSL_LINKED=y
 		CONFIG_QT${qt_ver}_STATIC=y
 		# CONFIG_QT${qt_ver}_SYSTEM_DC is not set
