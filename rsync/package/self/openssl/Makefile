@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=openssl
 PKG_BASE:=3.0
-PKG_BUGFIX:=3
+PKG_BUGFIX:=4
 PKG_VERSION:=$(PKG_BASE).$(PKG_BUGFIX)
 PKG_RELEASE:=1
 PKG_USE_MIPS16:=0
@@ -25,7 +25,7 @@ PKG_SOURCE_URL:= \
 	ftp://ftp.pca.dfn.de/pub/tools/net/openssl/source/ \
 	ftp://ftp.pca.dfn.de/pub/tools/net/openssl/source/old/$(PKG_BASE)/
 
-PKG_HASH:=ee0078adcef1de5f003c62c80cc96527721609c6f3bb42b7795df31f8b558c0b
+PKG_HASH:=2831843e9a668a0ab478e7020ad63d2d65e51f72977472dc73efcefbafc0c00f
 
 PKG_LICENSE:=OpenSSL
 PKG_LICENSE_FILES:=LICENSE
@@ -348,7 +348,7 @@ define Build/Configure
 endef
 
 TARGET_CFLAGS += $(FPIC) -ffunction-sections -fdata-sections
-TARGET_LDFLAGS += -Wl,--gc-sections
+TARGET_LDFLAGS += -latomic -Wl,--gc-sections
 
 define Build/Compile
 	+$(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR) \

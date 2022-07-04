@@ -70,6 +70,11 @@ curl -kLOZ --compressed ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY_OWNER}/qBittorr
 mkdir -p package/self/qbittorrent/patches
 mv daaf8a6f5.patch package/self/qbittorrent/patches/0001-daaf8a6f5.patch
 
+# https://github.com/openssl/openssl/pull/18673
+curl -kLOZ --compressed ${GITHUB_SERVER_URL}/openssl/openssl/commit/e6e5b75c9.patch
+mkdir -p package/self/openssl/patches
+mv e6e5b75c9.patch package/self/openssl/patches/0001-e6e5b75c9.patch
+
 # Update the indexs
 make package/symlinks-install
 
