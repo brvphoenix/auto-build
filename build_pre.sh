@@ -96,7 +96,6 @@ if [ "${link_type}" = "static" ]; then
 		CONFIG_QBT_STATIC_LINK=y
 	EOF
 
-	sed -i '/HOST_FPIC:=-fPIC/aFPIC:=-fPIC' rules.mk
 	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' feeds/packages/libs/pcre2/Makefile
 	sed -i 's/\(-DBUILD_STATIC_LIBS=\)OFF/\1ON/' feeds/packages/libs/pcre2/Makefile
 	sed -i '/(call BuildPackage,libpcre2)/i Package/libpcre2/install=true\nPackage/libpcre2-16/install=true\nPackage/libpcre2-32/install=true' feeds/packages/libs/pcre2/Makefile
