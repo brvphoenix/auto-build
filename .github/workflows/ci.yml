@@ -62,7 +62,7 @@ jobs:
         echo "::set-output name=matrix::{\"include\":${matrix}}"
     - name: Create draft
       id: create-draft
-      if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -183,7 +183,7 @@ jobs:
         token: ${{ secrets.SUPER_TOKEN }}
         path: qt_repo
     - name: Clone libt
-      if: ${{ fromJson(env.USE_UPSTREAM_LIBT) }}
+      if: fromJson(env.USE_UPSTREAM_LIBT)
       uses: actions/checkout@v3
       with:
         ref: ${{ env.USE_LIBT_MAKE_HASH }}
@@ -219,6 +219,7 @@ jobs:
         bash ../auto-build/build_pre.sh "${{ matrix.qt }}" "${{ matrix.libtorrent }}" "${{ matrix.link }}"
         make defconfig
     - name: Cache binary
+      if: needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true'
       id: cache-bin
       uses: actions/cache@v3
       with:
@@ -229,7 +230,7 @@ jobs:
         key: binary-${{ env.USE_RELEASE_NUMBER }}-${{ env.USE_SDK_FILE }}-${{ env.USE_SDK_VERSION }}-${{ env.USE_FEEDS_VERSION }}-${{ hashFiles('build/package/self/**') }}-${{ env.USE_LIBT_SRC_HASH }}
     - name: Build the Binary Files
       id: build-pkgs
-      if: ${{ (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true' }}
+      if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
       working-directory: ./build
       run: |
         make package/luci-app-qbittorrent/compile V=sc -j$(($(nproc)+1)) BUILD_LOG=1
@@ -245,7 +246,7 @@ jobs:
         		echo "::set-output name=hash::$(sha256sum ${{ env.SAVED_NAME }}.tar.xz | cut -d ' ' -f1)";
         	} || { echo "Not exist: ${{ env.SAVED_NAME }}.tar.xz"; exit 1; }
 
-        	[ -f "${{ env.SAVED_NAME }}.log.tar.xz" ] && echo "::set-output name=logs::true" || { echo "Not exist: ${{ env.SAVED_NAME }}.log.tar.xz"; exit 1; }
+        	[ -f "${{ env.SAVED_NAME }}.log.tar.xz" ] && echo "::set-output name=logs::true" || { echo "Not exist: ${{ env.SAVED_NAME }}.log.tar.xz"; echo "::set-output name=logs::false"; }
         	exit 0
         fi
 
@@ -355,7 +356,7 @@ jobs:
         echo "::set-output name=hash::$(sha256sum ${{ env.SAVED_NAME }}.tar.xz | cut -d ' ' -f1)"
     - name: Upload Release Asset
       id: upload-release
-      if: ${{ needs.build-prep.outputs.draft == 'success' }}
+      if: needs.build-prep.outputs.draft == 'success'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -364,7 +365,7 @@ jobs:
         hub release edit "${GITHUB_REF_NAME}" -a ../${{ env.SAVED_NAME }}.tar.xz -m ""
         hub release edit "${GITHUB_REF_NAME}" -a ../${{ env.SAVED_NAME }}-keychain.bin -m ""
     - name: Upload the Pkgs
-      if: ${{ always() && steps.upload-release.outcome != 'success' }}
+      if: always() && steps.upload-release.outcome != 'success'
       uses: actions/upload-artifact@v3
       with:
         name: ${{ env.SAVED_NAME }}-pkgs-${{ steps.pack-all.outputs.hash }}
@@ -372,20 +373,20 @@ jobs:
         if-no-files-found: error
     - name: Register QEMU
       id: register-docker
-      if: ${{ matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true') }}
+      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
       run: |
         sudo docker run --rm --privileged aptman/qus -s -- -p
     - name: Build Docker container
       id: build-docker
-      if: ${{ steps.register-docker.outcome == 'success' }}
+      if: steps.register-docker.outcome == 'success'
       run: |
         sudo docker build -t test-container --build-arg ARCH=${{ env.RUN_ON_TARGET }} --build-arg BRANCH=openwrt-21.02 ./auto-build/docker
     - name: Test via Docker container
-      if: ${{ steps.build-docker.outcome == 'success' }}
+      if: steps.build-docker.outcome == 'success'
       run: |
         sudo docker run --rm -v $GITHUB_WORKSPACE/${{ env.SAVED_NAME }}:/ci test-container
     - name: Upload the Logs
-      if: ${{ always() && steps.pack-all.outputs.logs == 'true' }}
+      if: always() && steps.pack-all.outputs.logs == 'true'
       uses: actions/upload-artifact@v3
       with:
         name: ${{ env.SAVED_NAME }}-log-${{ steps.pack-all.outputs.hash }}
@@ -394,7 +395,7 @@ jobs:
           ${{ env.SAVED_NAME }}-keychain.bin
         if-no-files-found: error
   pre-release:
-    if: ${{ needs.build-prep.outputs.draft == 'success' }}
+    if: needs.build-prep.outputs.draft == 'success'
     needs: [build-prep, build-matrix]
     runs-on: ubuntu-latest
     steps:
