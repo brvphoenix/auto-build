@@ -32,20 +32,23 @@ sed -i 's/git.openwrt\.org\/project\/luci/github.com\/openwrt\/luci/g' ./feeds.c
 # Sync with the source
 ./scripts/feeds update -a
 
-# Use custom libtorrent-rasterbar
-rm -rf feeds/packages/libs/libtorrent-rasterbar
-
-# Use custom openssl when static building
-[ "${link_type}" = "static" ] && rm -rf feeds/base/package/libs/openssl || rm -rf ../auto-build/rsync/package/self/openssl
-
 mkdir -p package/self
 cp -r ../qt_repo/qbittorrent/{luci-app-qbittorrent,qbittorrent,qtbase,qttools} package/self
-# Use the libtorrent official latest commit
-# cp -r ../libt_repo/qbittorrent/libtorrent-rasterbar package/self
-cp -r ../auto-build/rsync/package/self/libtorrent-rasterbar_${libt_ver} package/self/libtorrent-rasterbar
-rm -r ../auto-build/rsync/package/self/libtorrent-rasterbar_*
 
-rsync -a ../auto-build/rsync/* ./
+# Use custom libtorrent-rasterbar
+# cp -r ../libt_repo/qbittorrent/libtorrent-rasterbar package/self
+mv ../auto-build/rsync/common/package/self/libtorrent-rasterbar_${libt_ver} ../auto-build/rsync/common/package/self/libtorrent-rasterbar
+rm -rf ../auto-build/rsync/common/package/self/libtorrent-rasterbar_*
+rm -rf feeds/packages/libs/libtorrent-rasterbar
+
+# Use customized pkgs
+if [ "${link_type}" = "static" ]; then
+	rm -rf feeds/base/package/libs/openssl
+	rm -rf feeds/base/package/libs/pcre2
+fi
+
+[ -d "../auto-build/rsync/common" ] && rsync -a ../auto-build/rsync/common/* ./
+[ -d "../auto-build/rsync/${link_type}" ] && rsync -a ../auto-build/rsync/${link_type}/* ./
 
 # Add no-deprecated when built with openssl 3.0.x, libtorrent RC_2_0 and static linkage.
 [ -d package/self/openssl ] && [ "${libt_ver}" = "2_0" ] && [ "${link_type}" = "static" ] && sed -i 's/\(OPENSSL_OPTIONS:=.*\)$/\1 no-deprecated/' package/self/openssl/Makefile

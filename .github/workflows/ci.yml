@@ -123,7 +123,7 @@ jobs:
         # QBT source and libtorrent source info
         QBT_BRANCH=$(jq -r '.qbittorrent.QT_VERSION?."${{ matrix.qt }}"' ${JSON_FILE})
         USE_QBT_HASH="$(git ls-remote https://${GITHUB_REPOSITORY_OWNER}:${{ secrets.SUPER_TOKEN }}@github.com/${GITHUB_REPOSITORY_OWNER}/SomePackages refs/heads/${QBT_BRANCH} | cut -f1)"
-        USE_UPSTREAM_LIBT=$([ -d rsync/package/self/libtorrent-rasterbar_${{ matrix.libtorrent }} ] && echo false || echo true)
+        USE_UPSTREAM_LIBT=$([ -d rsync/common/package/self/libtorrent-rasterbar_${{ matrix.libtorrent }} ] && echo false || echo true)
         LIBT_BRANCH=$(jq -r '.qbittorrent.LIBTORRENT_VERSION?."${{ matrix.libtorrent }}"' ${JSON_FILE})
         [ "${USE_UPSTREAM_LIBT}" = "true" ] && \
         	USE_LIBT_MAKE_HASH="$(git ls-remote https://${GITHUB_REPOSITORY_OWNER}:${{ secrets.SUPER_TOKEN }}@github.com/${GITHUB_REPOSITORY_OWNER}/SomePackages refs/heads/${LIBT_BRANCH} | cut -f1)" || \
@@ -201,7 +201,7 @@ jobs:
           build/feeds/*
           !build/dl/qtbase-*.tar.xz
           !build/dl/qttools-*.tar.xz
-        key: source-${{ matrix.link }}-${{ env.USE_FEEDS_VERSION }}-${{ hashFiles('auto-build/rsync/**', '!auto-build/rsync/package/self/libtorrent-rasterbar_*') }}
+        key: source-${{ matrix.link }}-${{ env.USE_FEEDS_VERSION }}-${{ hashFiles('auto-build/rsync/common/**', format('auto-build/rsync/{0}/**', matrix.link), '!auto-build/rsync/common/package/self/libtorrent-rasterbar_*') }}
         restore-keys: |
           source-${{ matrix.link }}-${{ env.USE_FEEDS_VERSION }}-
           source-${{ matrix.link }}-
