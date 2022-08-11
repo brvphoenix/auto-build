@@ -22,14 +22,13 @@ PKG_BUILD_PARALLEL:=1
 PKG_USE_MIPS16:=0
 
 include $(INCLUDE_DIR)/package.mk
-include $(INCLUDE_DIR)/nls.mk
 
 define Package/$(PKG_NAME)
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=C++ bittorrent library by Rasterbar Software
   URL:=https://www.libtorrent.org
-  DEPENDS:=+boost +boost-system +libgcc +libopenssl +libstdcpp $(ICONV_DEPENDS)
+  DEPENDS:=+boost +boost-system +libgcc +libopenssl +libstdcpp
   ABI_VERSION:=10
 endef
 

@@ -53,19 +53,13 @@ rsync -a ../auto-build/rsync/* ./
 # Update the release number according the tag number
 sed -i 's/^\(PKG_RELEASE\)=\S\+/\1='${USE_RELEASE_NUMBER:-1}'/g' package/self/qbittorrent/Makefile
 
-# Compatible with libtorrent RC_1_2
-if [ "${libt_ver}" = "1_2" ] || [ "${qt_ver}" = "5" ]; then
-	sed -i 's/\(target_link_libraries(qbt_app PUBLIC "\)/\1-liconv /g' package/self/qbittorrent/patches/0012-fix-static-compile.patch
-	sed -i 's/\(include \$(INCLUDE_DIR)\/cmake\.mk\)$/\1\ninclude \$(INCLUDE_DIR)\/nls\.mk/g' package/self/qbittorrent/Makefile
-fi
-
 if [ "${qt_ver}" = "5" ]; then
 	# Make qmake compile in parallel (should be deleted when update to Qt6)
 	mv ../auto-build/test.mk package/self/qtbase
 	sed -i '/define Build\/Compile/i include ./test.mk' package/self/qtbase/Makefile
 
 	# Only needed when use openssl 3.0.x
-	[ -d package/self/openssl ] && sed -i 's/\(ICONV_LIBS="-liconv"\)$/\1 \\\n\tOPENSSL_LIBS="-lssl -lcrypto -latomic"/' package/self/qtbase/Makefile
+	[ -d package/self/openssl ] && sed -i 's/\(EXTRA_INCLUDE_LIBS =\)/\1 \\\n\tOPENSSL_LIBS="-lssl -lcrypto -latomic"/' package/self/qtbase/Makefile
 fi
 
 # Pathes has not been contained in the upstream.
