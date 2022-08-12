@@ -42,7 +42,7 @@ if [ "${link_type}" = "static" ]; then
 	rm -rf feeds/packages/libs/pcre2
 fi
 
-[ -d '../mirror' ] && rsync -a ../mirror/* ./ || exit 1
+[ -d '../mirror' ] && rsync -av ../mirror/* ./ || exit 1
 
 # Update the indexs
 echo "::group::Install packages"

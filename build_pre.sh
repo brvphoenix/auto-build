@@ -22,8 +22,8 @@ fi
 
 rm -rf ./auto-build/rsync/common/package/self/libtorrent-rasterbar_*
 
-[ -d "./auto-build/rsync/common" ] && rsync -a ./auto-build/rsync/common/* ${MIRROR_DIR}
-[ -d "./auto-build/rsync/${link_type}" ] && rsync -a ./auto-build/rsync/${link_type}/* ${MIRROR_DIR}
+[ -d "./auto-build/rsync/common" ] && rsync -av ./auto-build/rsync/common/* ${MIRROR_DIR}
+[ -d "./auto-build/rsync/${link_type}" ] && rsync -av ./auto-build/rsync/${link_type}/* ${MIRROR_DIR}
 
 # Update the release number according the tag number
 sed -i 's/^\(PKG_RELEASE\)=\S\+/\1='${USE_RELEASE_NUMBER:-1}'/g' ${MIRROR_SELF_DIR}/qbittorrent/Makefile

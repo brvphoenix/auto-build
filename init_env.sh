@@ -80,3 +80,6 @@ if [ "${RUNTIME_TEST}" = "true" ]; then
 		-H "Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/openwrtorg/rootfs/manifests/${RUN_ON_TARGET:-${USE_TARGET}}-${USE_OPENWRT_BRANCH}" \
 		| sed -n 's/docker-content-digest:\s\+sha256:\(\w\+\)/\1/gp' | xargs -i echo "USE_ROOTFS_HASH={}" >> $GITHUB_ENV || exit 1
 fi
+
+echo $GITHUB_ENV
+cat $GITHUB_ENV

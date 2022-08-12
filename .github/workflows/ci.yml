@@ -286,6 +286,10 @@ jobs:
         restore-keys: |
           source-${{ matrix.link }}-
           source-
+    - run: |
+        if [ -d 'build/dl' ]; then
+        	ls -lha build/dl
+        fi
     - name: Cache Qt source
       id: cache-qt
       uses: actions/cache@v3
@@ -294,6 +298,10 @@ jobs:
           build/dl/qtbase-*-src-${{ env.USE_QT_VER }}.tar.xz
           build/dl/qttools-*-src-${{ env.USE_QT_VER }}.tar.xz
         key: qt-${{ env.USE_QT_VER }}
+    - run: |
+        if [ -d 'build/dl' ]; then
+        	ls -lha build/dl
+        fi
     - name: Download pkgs
       if: ${{ steps.cache-src.outputs.cache-hit != 'true' || steps.cache-qt.outputs.cache-hit != 'true' }}
       working-directory: ./build
@@ -309,6 +317,10 @@ jobs:
         if [ ! -d "dl" ]; then
         	./scripts/dl_cleanup.py 2>&1 >/dev/null
         	rm -rf dl/libtorrent-rasterbar-*.tar.gz
+        fi
+    - run: |
+        if [ -d 'build/dl' ]; then
+        	ls -lha build/dl
         fi
   build-matrix:
     name: ${{ matrix.link }}, ${{ matrix.arch }}, qt${{ matrix.qt }}, libtorrent_${{ matrix.libtorrent }}
@@ -440,6 +452,10 @@ jobs:
         restore-keys: |
           source-${{ matrix.link }}-
           source-
+    - run: |
+        if [ -d 'build/dl' ]; then
+        	ls -lha build/dl
+        fi
     - name: Cache Qt source
       uses: actions/cache@v3
       with:
@@ -447,6 +463,10 @@ jobs:
           build/dl/qtbase-*-src-${{ env.USE_QT_VER }}.tar.xz
           build/dl/qttools-*-src-${{ env.USE_QT_VER }}.tar.xz
         key: qt-${{ env.USE_QT_VER }}
+    - run: |
+        if [ -d 'build/dl' ]; then
+        	ls -lha build/dl
+        fi
     - name: Cache binary
       if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true')
       id: cache-bin
