@@ -159,6 +159,16 @@ jobs:
 
         echo "USE_RELEASE_NUMBER=${USE_RELEASE_NUMBER:-1}" >> $GITHUB_ENV
 
+        # Get the docker image hash
+        if [ "${{ matrix.runtime_test }}" = "true" ]; then
+        	token=$(curl --silent "https://auth.docker.io/token?scope=repository:aptman/qus:pull&service=registry.docker.io"  | jq -r '.token')
+        	curl -s -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+        		-H "Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/aptman/qus/manifests/latest" \
+        		| jq -r '.manifests | .[] | select(.platform.architecture == "amd64") | .digest' \
+        		| sed 's/sha256:\(\w\+\)/\1/g' \
+        		| xargs -i echo "USE_DOCKER_HASH={}" >> $GITHUB_ENV || exit 1
+        fi
+
         # Common name of the saved files
         echo "SAVED_NAME=${{ matrix.arch }}-${{ matrix.link }}-qt${{ matrix.qt }}-libtorrent_${{ matrix.libtorrent }}" >> $GITHUB_ENV
     - name: Cache SDK
@@ -371,20 +381,46 @@ jobs:
         name: ${{ env.SAVED_NAME }}-pkgs-${{ steps.pack-all.outputs.hash }}
         path: ./${{ env.SAVED_NAME }}.tar.xz
         if-no-files-found: error
+    - name: Cache image aptman
+      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
+      id: cache-aptman
+      uses: actions/cache@v3
+      with:
+        path: ~/docker_images/aptman_qus.tar
+        key: docker-${{ env.USE_DOCKER_HASH }}
+    - name: Cache docker image
+      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
+      id: cache-docker
+      uses: actions/cache@v3
+      with:
+        path: ~/docker_images/test_docker.tar
+        key: docker-${{ env.RUN_ON_TARGET }}-${{ hashFiles('auto-build/docker/**') }}
+    - if: matrix.runtime_test && steps.cache-aptman.outputs.cache-hit != 'true' && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
+      run: |
+        docker pull aptman/qus
+        mkdir -p ~/docker_images
+        docker save -o ~/docker_images/aptman_qus.tar aptman/qus
+    - if: steps.cache-aptman.outputs.cache-hit == 'true'
+      run: |
+        docker load -i ~/docker_images/aptman_qus.tar
+    - if: steps.cache-docker.outputs.cache-hit == 'true'
+      run: |
+        docker load -i ~/docker_images/test_docker.tar
     - name: Register QEMU
-      id: register-docker
       if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
       run: |
-        sudo docker run --rm --privileged aptman/qus -s -- -p
+        docker run --rm --privileged aptman/qus -s -- -p
     - name: Build Docker container
       id: build-docker
-      if: steps.register-docker.outcome == 'success'
+      if: matrix.runtime_test && steps.cache-docker.outputs.cache-hit != 'true' && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
       run: |
-        sudo docker build -t test-container --build-arg ARCH=${{ env.RUN_ON_TARGET }} --build-arg BRANCH=openwrt-21.02 ./auto-build/docker
+        docker build -t test-container --build-arg ARCH=${{ env.RUN_ON_TARGET }} --build-arg BRANCH=openwrt-21.02 ./auto-build/docker
+        mkdir -p ~/docker_images
+        docker save -o ~/docker_images/test_docker.tar test-container
     - name: Test via Docker container
-      if: steps.build-docker.outcome == 'success'
+      if: matrix.runtime_test && (steps.cache-docker.outputs.cache-hit == 'true' || steps.build-docker.outcome == 'success')
       run: |
-        sudo docker run --rm -v $GITHUB_WORKSPACE/${{ env.SAVED_NAME }}:/ci test-container
+        docker run --rm -v $GITHUB_WORKSPACE/${{ env.SAVED_NAME }}:/ci test-container
     - name: Upload the Logs
       if: always() && steps.pack-all.outputs.logs == 'true'
       uses: actions/upload-artifact@v3
