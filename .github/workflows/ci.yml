@@ -130,17 +130,17 @@ jobs:
         	sudo -E apt -y install jq curl
         }
         [ "$run_test" != "true" ] || sudo -E apt install skopeo
-    - name: Cache Env
-      uses: actions/cache@v3
-      with:
-        path: auto-build/init_env
-        key: env-${{ matrix.arch }}-${{ matrix.link }}-${{ hashFiles('auto-build/init_env.sh') }}-${{ github.run_id }}
     - name: Initialize Environment
       id: init
       working-directory: ./auto-build
       run: |
         bash ./init_env.sh "${{ matrix.arch }}" "${{ matrix.link }}"
         cp $GITHUB_ENV init_env
+    - name: Upload init Env
+      uses: actions/upload-artifact@v3
+      with:
+        name: env-${{ matrix.arch }}-${{ matrix.link }}
+        path: auto-build/init_env
     - name: Cache SDK
       uses: actions/cache@v3
       id: cache-sdk
@@ -173,24 +173,19 @@ jobs:
         	sudo -E apt -y install jq curl
         }
         [ "$run_test" != "true" ] || sudo -E apt install skopeo
-    - name: Cache Init Env
-      uses: actions/cache@v3
+    - name: Download init Env
+      id: arch-depended-env
+      uses: actions/download-artifact@v3
       with:
-        path: auto-build/init_env
-        key: env-${{ matrix.arch }}-${{ matrix.link }}-${{ hashFiles('auto-build/init_env.sh') }}-${{ github.run_id }}
-    - name: Cache Env
-      uses: actions/cache@v3
-      with:
-        path: auto-build/env
-        key: env-${{ matrix.link }}-${{ matrix.qt }}-${{ matrix.libtorrent }}-${{ matrix.arch }}-${{ github.run_id }}
+        name: env-${{ matrix.arch }}-${{ matrix.link }}
     - name: Initialize Environment
       working-directory: ./auto-build
       env:
         SUPER_TOKEN: ${{ secrets.SUPER_TOKEN }}
+        env_path: ${{ steps.arch-depended-env.outputs.download-path }}
       run: |
-        ls -lha
-        if [ -f './init_env' ]; then
-        	cat ./init_env > $GITHUB_ENV
+        if [ -f "${env_path}/init_env" ]; then
+        	cat ${env_path}/init_env > $GITHUB_ENV
         else
         	bash ./init_env.sh "${{ matrix.arch }}" "${{ matrix.link }}"
         fi
@@ -322,6 +317,11 @@ jobs:
         if [ -d 'build/dl' ]; then
         	ls -lha build/dl
         fi
+    - name: Upload Env
+      uses: actions/upload-artifact@v3
+      with:
+        name: env-${{ matrix.link }}-${{ matrix.qt }}-${{ matrix.libtorrent }}
+        path: auto-build/env
   build-matrix:
     name: ${{ matrix.link }}, ${{ matrix.arch }}, qt${{ matrix.qt }}, libtorrent_${{ matrix.libtorrent }}
     needs: [build-prep, sdk-download, pkg-download]
@@ -341,36 +341,33 @@ jobs:
         sudo -E apt -y install \
         	build-essential curl flex gawk git jq libncurses5-dev libssl-dev \
         	python3 python3-distutils xz-utils zlib1g-dev
-    - name: Cache Arch Env
-      uses: actions/cache@v3
+    - name: Download arch depended env
+      id: arch-depended-env
+      uses: actions/download-artifact@v3
       with:
-        path: auto-build/init_env
-        key: env-${{ matrix.arch }}-${{ matrix.link }}-${{ hashFiles('auto-build/init_env.sh') }}-${{ github.run_id }}
-        restore-keys: |
-          env-${{ matrix.arch }}-${{ matrix.link }}-
+        name: env-${{ matrix.arch }}-${{ matrix.link }}
     - name: Initialize Arch Environment
       working-directory: ./auto-build
+      env:
+        env_path: ${{ steps.arch-depended-env.outputs.download-path }}
       run: |
-        if [ -f './init_env' ]; then
-        	cat ./init_env >> $GITHUB_ENV
-        	rm ./init_env
+        if [ -f "${env_path}/init_env" ]; then
+        	cat ${env_path}/init_env >> $GITHUB_ENV
         else
         	exit 1
         fi
-    - name: Cache Pkg Env
-      uses: actions/cache@v3
+    - name: Download Env
+      id: arch-independed-env
+      uses: actions/download-artifact@v3
       with:
-        path: auto-build/env
-        key: env-${{ matrix.link }}-${{ matrix.qt }}-${{ matrix.libtorrent }}-${{ matrix.arch }}-${{ github.run_id }}
-        restore-keys: |
-          env-${{ matrix.link }}-${{ matrix.qt }}-${{ matrix.libtorrent }}-${{ matrix.arch }}-
-          env-${{ matrix.link }}-${{ matrix.qt }}-${{ matrix.libtorrent }}-
+        name: env-${{ matrix.link }}-${{ matrix.qt }}-${{ matrix.libtorrent }}
     - name: Initialize Pkg Environment
       working-directory: ./auto-build
+      env:
+        env_path: ${{ steps.arch-independed-env.outputs.download-path }}
       run: |
-        if [ -f './env' ]; then
-        	cat ./env >> $GITHUB_ENV
-        	rm ./env
+        if [ -f "${env_path}/env" ]; then
+        	cat ${env_path}//env >> $GITHUB_ENV
         else
         	exit 1
         fi
@@ -511,16 +508,23 @@ jobs:
       if: always() && steps.upload-release.outcome != 'success' && steps.pack-all.outputs.pkgs == 'true'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ env.SAVED_NAME }}-pkgs-${{ steps.pack-all.outputs.hash }}
+        name: ${{ env.SAVED_NAME }}-pkgs
         path: ./${{ env.SAVED_NAME }}.tar.xz
         if-no-files-found: error
     - name: Upload the Logs
       if: always() && steps.pack-all.outputs.logs == 'true'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ env.SAVED_NAME }}-log-${{ steps.pack-all.outputs.hash }}
+        name: ${{ env.SAVED_NAME }}-log
         path: |
           ./${{ env.SAVED_NAME }}.log.tar.xz
+        if-no-files-found: error
+    - name: Upload the sha256sum
+      if: steps.pack-all.outputs.pkgs == 'true'
+      uses: actions/upload-artifact@v3
+      with:
+        name: sha256sum-${{ env.SAVED_NAME }}
+        path: sha256sum-${{ env.SAVED_NAME }}
         if-no-files-found: error
     - name: Cache busybox
       if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
@@ -631,9 +635,38 @@ jobs:
         fi
 
         [ -n "$sid" ] || { echo "Can't connect to qbittorrent!!!"; exit 1; }
+  post-clean:
+    needs: [build-prep, build-matrix]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Clone Current Repository
+      uses: actions/checkout@v3
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts
+    - run: |
+        touch sha256sum
+        find artifacts -type f -iname 'sha256sum-*' -exec cat {} >> sha256sum \;
+    - name: Upload the sha256sum
+      uses: actions/upload-artifact@v3
+      with:
+        name: sha256sum
+        path: sha256sum
+        if-no-files-found: error
+    - name: Clean artifacts
+      env:
+        token: ${{ secrets.SUPER_TOKEN }}
+      run: |
+        curl \
+        	-X POST \
+        	-H "Accept: application/vnd.github+json" \
+        	-H "Authorization: Bearer ${token}" \
+        	https://api.github.com/repos/${GITHUB_REPOSITORY}/dispatches \
+        	-d '{"event_type": "clean_artifacts", "client_payload": {"parent_runid": "'${GITHUB_RUN_ID}'", "parent_repo": "'${GITHUB_REPOSITORY}'"}}'
   pre-release:
     if: needs.build-prep.outputs.draft == 'success'
-    needs: [build-prep, build-matrix]
+    needs: [build-prep, build-matrix, post-clean]
     runs-on: ubuntu-latest
     steps:
     - name: Clone Current Repository

@@ -1,0 +1,37 @@
+name: clean artifacts
+on:
+  repository_dispatch:
+    types: [clean_artifacts]
+
+jobs:
+  post-build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Clean artifacts
+      env:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        runid: ${{ github.event.client_payload.parent_runid }}
+        repo: ${{ github.event.client_payload.parent_repo }}
+      run: |
+        total_count=$(curl -s \
+        	-H "Accept: application/vnd.github+json" \
+        	-H "Authorization: token ${token}" \
+        	"https://api.github.com/repos/${repo}/actions/runs/${runid}/artifacts?per_page=1" \
+        	| jq -r '.total_count')
+
+        for line in $(curl -s \
+        	-H "Accept: application/vnd.github+json" \
+        	-H "Authorization: token ${token}" \
+        	"https://api.github.com/repos/${repo}/actions/runs/${runid}/artifacts?per_page=$total_count" \
+        	| jq -r '.artifacts | .[] | .name + "^" + (.id | tostring)'); do
+
+        	case $line in
+        	env-*|sha256sum-*)
+        		curl -s \
+        			-X DELETE \
+        			-H "Accept: application/vnd.github+json" \
+        			-H "Authorization: token ${token}" \
+        			"https://api.github.com/repos/${repo}/actions/artifacts/$(echo $line | cut -d '^' -f2)"
+        	;;
+        	esac
+        done

@@ -6,7 +6,7 @@ set -eET -o pipefail
 if [ "${CACHE_HIT}" = "true" ]; then
 	[ -f "${SAVED_NAME}.tar.xz" ] && {
 		tar -xJf ${SAVED_NAME}.tar.xz;
-		echo "hash=$(sha256sum ${SAVED_NAME}.tar.xz | head -c 12)" >> $GITHUB_OUTPUT;
+		echo "$(sha256sum ${SAVED_NAME}.tar.xz)" > sha256sum-${SAVED_NAME}
 		echo "pkgs=true" >> $GITHUB_OUTPUT
 	} || echo "Not exist: ${SAVED_NAME}.tar.xz"
 
@@ -121,6 +121,9 @@ echo "hash=$(sha256sum ${SAVED_NAME}.tar.xz | head -c 12)" >> $GITHUB_OUTPUT
 # tar -czvf - ${BUILD_KEY}.pub ${BUILD_KEY} | \
 # openssl enc -aes-256-ctr -pbkdf2 -pass pass:${KEYCHAIN_SECRET} > ${SAVED_NAME}-keychain.bin
 ## openssl enc -d -aes-256-ctr -pbkdf2 -pass pass:123456 -in ${SAVED_NAME}-keychain.bin | tar -xz
+
+# hashFiles has different value with sha256sum
+echo "$(sha256sum ${SAVED_NAME}.tar.xz)" > sha256sum-${SAVED_NAME}
 
 # Clean up the obsolete packages
 if [ ! -d "build/dl" ]; then
