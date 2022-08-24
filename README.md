@@ -4,12 +4,12 @@
 [![GitHub Latest Releases](https://img.shields.io/github/downloads-pre/brvphoenix/auto-build/latest/total)](https://github.com/brvphoenix/auto-build/releases)
 [![Lastest Release](https://img.shields.io/github/release/brvphoenix/auto-build.svg?style=flat)](https://github.com/brvphoenix/auto-build/releases)
 
-# Version 4.4.3.1
+# Version 4.4.4
 [ChangeLog](https://github.com/qbittorrent/qBittorrent/blob/v4_4_x/Changelog)
 
 # Depends (dynamic / static)
-* Boost 1.75.0 / 1.79.0
-* libtorrent-rasterbar [RC_1_2@0aa7657aa](https://github.com/arvidn/libtorrent/commits/RC_1_2?before=0aa7657aaf99bdf1e513e15b57ce8d938de098a5+35&branch=RC_1_2) or [RC_2_0@121858810](https://github.com/arvidn/libtorrent/commits/RC_2_0?before=1218588101a9908351b7ac6258ca0a8a7311aa21+35&branch=RC_2_0)
+* Boost 1.75.0 / 1.80.0
+* libtorrent-rasterbar [RC_1_2@2d34455ad2](https://github.com/arvidn/libtorrent/commits/RC_1_2?before=2d34455ad2b828d3da23634f7de93fafded5442d+35&branch=RC_1_2) or [RC_2_0@8219b61d43](https://github.com/arvidn/libtorrent/commits/RC_2_0?before=8219b61d43a00f16580110ed33d14e40a5001812+35&branch=RC_2_0)
 * openssl 1.1.1n / 3.0.5
 * Qt 5.15.5 or 6.3.1
 * zlib 1.2.11 / 1.2.12

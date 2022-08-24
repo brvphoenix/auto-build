@@ -28,4 +28,4 @@ echo "qBittorrent:" $(curl -s http://localhost:8080/api/v2/app/version --cookie 
 echo "WebAPI:" $(curl -s http://localhost:8080/api/v2/app/webapiVersion --cookie "SID=${sid}")
 echo "-------------------------------------------"
 curl -s http://localhost:8080/api/v2/app/buildInfo --cookie "SID=${sid}" | jq -r 'to_entries[] | "\(.key): \(.value)"'
-curl -s http://localhost:8080/api/v2/app/shutdown --cookie "SID=${sid}"
+curl -s -X POST http://localhost:8080/api/v2/app/shutdown --cookie "SID=${sid}"
