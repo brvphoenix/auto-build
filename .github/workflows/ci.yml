@@ -6,6 +6,14 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
+      os:
+        description: 'Building on OS'
+        required: true
+        type: choice
+        options:
+        - windows
+        - linux
+        - all
       build:
         description: 'Building pkgs'
         required: true
@@ -50,11 +58,35 @@ on:
         - all
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-format("{0}-{1}-{2}-{3}", github.event.inputs.type, github.event.inputs.arch, github.event.inputs,qt, github.event.inputs.lt)
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-format("{0}-{1}-{2}-{3}-${4}", github.event.inputs.os, github.event.inputs.type, github.event.inputs.arch, github.event.inputs,qt, github.event.inputs.lt)
   cancel-in-progress: true
 
 jobs:
+  windows:
+    if: github.event.inputs.os != 'linux'
+    runs-on: windows-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    - shell: cmd
+      working-directory: c:\
+      run: |
+        CALL "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        MKDIR build
+        COPY ${{ github.workspace }}\build.bat build
+        CD build
+        CALL build.bat
+        CD ..
+        MKDIR pack
+        COPY build\base\usr\bin\qbittorrent* pack
+    - name: Upload build
+      uses: actions/upload-artifact@v3
+      with:
+        name: windows
+        path: c:\pack
+        if-no-files-found: error
   build-prep:
+    if: github.event.inputs.os != 'windows'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
