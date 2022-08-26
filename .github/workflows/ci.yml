@@ -6,6 +6,14 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
+      os:
+        description: 'Building on OS'
+        required: true
+        type: choice
+        options:
+        - windows
+        - linux
+        - all
       build:
         description: 'Building pkgs'
         required: true
@@ -47,7 +55,7 @@ on:
         - all
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ format('{0}-{1}-{2}-{3}', github.event.inputs.type, github.event.inputs.target, github.event.inputs.qt, github.event.inputs.lt) }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-format("{0}-{1}-{2}-{3}-${4}", github.event.inputs.os, github.event.inputs.type, github.event.inputs.arch, github.event.inputs,qt, github.event.inputs.lt)
   cancel-in-progress: true
 
 permissions:
@@ -55,7 +63,139 @@ permissions:
   contents: write
 
 jobs:
+  windows:
+    if: github.event.inputs.os != 'linux'
+    runs-on: windows-latest
+    env:
+      CUR_REPO_NAME: auto-build
+      CUR_QBT_REPO_NAME: qt_repo
+      CUR_SCRIPTS_REPO_NAME: build-scripts
+    steps:
+    - name: Checkout scripts' repository
+      uses: actions/checkout@v6
+      with:
+        repository: ${{ github.repository_owner }}/build-scripts
+        fetch-depth: 1
+        token: ${{ secrets.SUPER_TOKEN }}
+        path: ${{ env.CUR_SCRIPTS_REPO_NAME }}
+
+    - name: Clone qbittorrent
+      uses: actions/checkout@v6
+      with:
+        repository: ${{ github.repository_owner }}/SomePackages
+        fetch-depth: 0
+        token: ${{ secrets.SUPER_TOKEN }}
+        path: ${{ env.CUR_QBT_REPO_NAME }}
+
+    - name: Cache DL
+      uses: actions/cache@v5
+      with:
+        path: D:\build\dl
+        key: win-dl-${{ hashFiles(format('{0}\{1}\windows\**', github.workspace, env.CUR_SCRIPTS_REPO_NAME)) }}
+        restore-keys: win-dl-
+
+    - name: Cache builds
+      uses: actions/cache@v5
+      with:
+        path: D:\build\cache
+        key: win-cache-${{ hashFiles(format('{0}\{1}\windows\**', github.workspace, env.CUR_SCRIPTS_REPO_NAME)) }}
+        restore-keys: win-cache-
+
+    - name: Prepare
+      shell: cmd
+      working-directory: C:\
+      run: |
+        CALL "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" amd64
+
+        IF EXIST "D:\build\dl" (
+            MKDIR "C:\build\dl"
+            ROBOCOPY /MOVE /E /XX "D:\build\dl" "C:\build\dl"
+        )
+
+        IF EXIST "D:\build\cache" (
+            MKDIR "C:\build\cache"
+            ROBOCOPY /MOVE /E /XX "D:\build\cache" "C:\build\cache"
+        )
+
+        MKDIR build pack
+        ROBOCOPY /MOVE /E /XX "${{ github.workspace }}\${{ env.CUR_SCRIPTS_REPO_NAME }}\windows" build
+        MKDIR build\batch\libtorrent-rasterbar\patches
+        ROBOCOPY /MOVE /E /XX "${{ github.workspace }}\${{ env.CUR_QBT_REPO_NAME }}\packages\libs\libtorrent-rasterbar\patches" build\batch\libtorrent-rasterbar\patches
+        MKDIR build\batch\qbittorrent\patches
+        ROBOCOPY /MOVE /E /XX "${{ github.workspace }}\${{ env.CUR_QBT_REPO_NAME }}\packages\net\qbittorrent\patches" build\batch\qbittorrent\patches
+
+        @echo off
+
+        SET _QBT_VER=""
+        FOR /F "tokens=1,2,3 delims== " %%a IN (' find "=" ^< "build\batch\qbittorrent\build.bat" ') do (
+            IF "%%~a"=="SET" IF "%%~b"=="_qbt_ver" (
+                SET _QBT_VER=%%~c
+            )
+        )
+
+        curl -kLZ -o build\batch\qbittorrent\patches\0001.patch https://github.com/brvphoenix/qBittorrent/compare/release-%_QBT_VER%...stable_backup.patch
+        DEL /Q /S build\batch\qbittorrent\patches\0806-filelogger.patch
+
+        IF %ERRORLEVEL% LEQ 7 SET ERRORLEVEL=0
+
+    - name: build zlib openssl boost
+      shell: cmd
+      working-directory: C:\build
+      run: |
+        CALL "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" amd64
+        SET USE_CACHE=1
+        SET AUTO_REMOVE=1
+        CALL build.bat zlib openssl boost
+        IF %ERRORLEVEL% LEQ 7 SET ERRORLEVEL=0
+
+    - name: build qt
+      shell: cmd
+      working-directory: C:\build
+      run: |
+        CALL "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" amd64
+        SET USE_CACHE=1
+        SET AUTO_REMOVE=1
+        CALL build.bat qtbase qttools qtsvg qtimageformats qttranslations
+        IF %ERRORLEVEL% LEQ 7 SET ERRORLEVEL=0
+
+    - name: build libtorrent qbittorrent
+      shell: cmd
+      working-directory: C:\build
+      run: |
+        CALL "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" amd64
+
+        DEL /Q /S C:\build\cache\qbittorrent.7z
+        SET USE_CACHE=1
+        SET AUTO_REMOVE=1
+        CALL build.bat libtorrent-rasterbar qbittorrent
+        CD ..
+
+        COPY build\stage\usr\bin\qbittorrent.* pack
+
+        IF NOT EXIST "D:\build\dl" MKDIR "D:\build\dl"
+        ROBOCOPY /MOVE /E "C:\build\dl" "D:\build\dl"
+
+        IF NOT EXIST "D:\build\cache" MKDIR "D:\build\cache"
+        ROBOCOPY /MOVE /E "C:\build\cache" "D:\build\cache"
+
+        IF %ERRORLEVEL% LEQ 7 SET ERRORLEVEL=0
+
+    - name: Upload logs
+      uses: actions/upload-artifact@v6
+      with:
+        name: windows_x64-logs-${{ github.run_attempt }}
+        path: C:\build\logs
+        if-no-files-found: error
+
+    - name: Upload build
+      uses: actions/upload-artifact@v6
+      with:
+        name: windows_x64-pkgs-${{ github.run_attempt }}
+        path: c:\pack
+        if-no-files-found: error
+
   build-prep:
+    if: github.event.inputs.os != 'windows'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
