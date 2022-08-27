@@ -68,21 +68,34 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
+    - name: Cache DL
+      uses: actions/cache@v3
+      with:
+        path: D:\build\dl
+        key: win-dl-${{ hashFiles(format('{0}\README.md', github.workspace)) }}
+        restore-keys: win-dl-
     - shell: cmd
       working-directory: c:\
       run: |
-        CALL "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        IF EXIST "D:\build\dl" (
+            MKDIR "C:\build\dl"
+            ROBOCOPY /MOVE /E /XX "D:\build\dl" "C:\build\dl"
+        )
+        CALL "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" amd64
         MKDIR build
         COPY ${{ github.workspace }}\build.bat build
         CD build
         CALL build.bat
         CD ..
         MKDIR pack
-        COPY build\base\usr\bin\qbittorrent* pack
+        COPY build\stage\usr\bin\qbittorrent.* pack
+        IF NOT EXIST "D:\build\dl" ( MKDIR "D:\build\dl" )
+        ROBOCOPY /MOVE /E "C:\build\dl" "D:\build\dl"
+        if %ERRORLEVEL% LEQ 7 set ERRORLEVEL=0
     - name: Upload build
       uses: actions/upload-artifact@v3
       with:
-        name: windows
+        name: windows_x64
         path: c:\pack
         if-no-files-found: error
   build-prep:
