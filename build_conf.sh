@@ -30,7 +30,6 @@ rm -rf feeds/packages/libs/libtorrent-rasterbar
 
 # Use customized pkgs
 if [ "${link_type}" = "static" ]; then
-	rm -rf feeds/packages/libs/boost
 	rm -rf feeds/base/package/libs/openssl
 	rm -rf feeds/base/package/libs/pcre2
 fi

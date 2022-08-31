@@ -40,8 +40,3 @@ fi
 curl -kLOZ --compressed ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY_OWNER}/qBittorrent/commit/daaf8a6f5.patch
 mkdir -p ../mirror/package/self/qbittorrent/patches
 mv daaf8a6f5.patch ../mirror/package/self/qbittorrent/patches/0001-daaf8a6f5.patch
-
-if [ "${libt_ver}" = "2_0" ]; then
-	curl -kLOZ --compressed ${GITHUB_SERVER_URL}/arvidn/libtorrent/commit/35f57a6beb.patch
-	mkdir -p ../mirror/package/self/libtorrent-rasterbar/patches && mv 35f57a6beb.patch ../mirror/package/self/libtorrent-rasterbar/patches/35f57a6beb.patch
-fi

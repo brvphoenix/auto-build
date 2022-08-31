@@ -5,13 +5,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libtorrent-rasterbar
-PKG_VERSION:=2.0.6
+PKG_VERSION:=2.0.7
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/arvidn/libtorrent.git
 PKG_SOURCE_VERSION:=RC_2_0
-PKG_SOURCE_DATE:=2021-05-26
+PKG_SOURCE_DATE:=2022-08-31
 PKG_MIRROR_HASH:=skip
 
 PKG_LICENSE:=BSD-3-Clause
