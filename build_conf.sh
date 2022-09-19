@@ -31,7 +31,7 @@ rm -rf feeds/packages/libs/libtorrent-rasterbar
 # Use customized pkgs
 if [ "${link_type}" = "static" ]; then
 	rm -rf feeds/base/package/libs/openssl
-	rm -rf feeds/base/package/libs/pcre2
+	rm -rf feeds/packages/libs/pcre2
 fi
 
 [ -d '../mirror' ] && rsync -a ../mirror/* ./ || exit 1
