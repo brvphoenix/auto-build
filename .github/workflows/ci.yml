@@ -59,7 +59,7 @@ jobs:
         	done
         done
         [ "${matrix}" != "[]" ] || exit 1
-        echo "::set-output name=matrix::{\"include\":${matrix}}"
+        echo "matrix={\"include\":${matrix}}" >> $GITHUB_OUTPUT
     - name: Create draft
       id: create-draft
       if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')

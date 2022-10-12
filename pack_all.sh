@@ -8,11 +8,11 @@ set -eET -o pipefail
 if [ "${CACHE_HIT}" = "true" ]; then
 	[ -f "${SAVED_NAME}.tar.xz" ] && {
 		tar -xJf ${SAVED_NAME}.tar.xz;
-		echo "::set-output name=hash::$(sha256sum ${SAVED_NAME}.tar.xz | cut -d ' ' -f1)";
-		echo "::set-output name=pkgs::true"
+		echo "hash=$(sha256sum ${SAVED_NAME}.tar.xz | cut -d ' ' -f1)" >> $GITHUB_OUTPUT;
+		echo "pkgs=true" >> $GITHUB_OUTPUT
 	} || echo "Not exist: ${SAVED_NAME}.tar.xz"
 
-	[ -f "${SAVED_NAME}.log.tar.xz" ] && echo "::set-output name=logs::true" || echo "Not exist: ${SAVED_NAME}.log.tar.xz"
+	[ -f "${SAVED_NAME}.log.tar.xz" ] && echo "logs=true" >> $GITHUB_OUTPUT || echo "Not exist: ${SAVED_NAME}.log.tar.xz"
 	exit 0
 fi
 
@@ -23,7 +23,7 @@ link_type=$2
 [ -d "build/logs" ] && { \
 	cd build && XZ_OPT=-9 tar -cJvf ../${SAVED_NAME}.log.tar.xz logs
 	cd ..
-	echo "::set-output name=logs::true"
+	echo "logs=true" >> $GITHUB_OUTPUT
 }
 
 # The save path of the packages
@@ -110,10 +110,10 @@ EOF
 
 # Compress the pkgs
 tar -cJf ${SAVED_NAME}.tar.xz ${SAVED_NAME}
-echo "::set-output name=pkgs::true"
+echo "pkgs=true" >> $GITHUB_OUTPUT
 
 # hashFiles has different value with sha256sum
-echo "::set-output name=hash::$(sha256sum ${SAVED_NAME}.tar.xz | cut -d ' ' -f1)"
+echo "hash=$(sha256sum ${SAVED_NAME}.tar.xz | cut -d ' ' -f1)" >> $GITHUB_OUTPUT
 
 # Compress and encrypt the keychain
 tar -czvf - ${BUILD_KEY}.ucert ${BUILD_KEY}.pub ${BUILD_KEY} | \
