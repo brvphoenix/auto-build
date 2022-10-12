@@ -3,8 +3,6 @@
 set -eET -o pipefail
 . ${GITHUB_WORKSPACE}/auto-build/build_default.sh
 
-. "$GITHUB_ENV"
-
 qt_ver=$1
 libt_ver=$2
 link_type=$3

@@ -99,11 +99,11 @@ jobs:
         path: ./${{ env.USE_SDK_FILE }}
         key: ${{ matrix.link }}-${{ matrix.arch }}-${{ env.USE_SDK_VERSION }}
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
-      run: curl -kLOZ --compressed ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
+      run: curl -kLOZ --compressed "${USE_SOURCE_URL}/${USE_SDK_FILE}"
     - run: |
-        [ "$(sha256sum ${{ env.USE_SDK_FILE }} | cut -d ' ' -f1)" = "${{ env.USE_SDK_SHA256SUM }}" ] || exit 1;
+        [ "$(sha256sum ${USE_SDK_FILE} | cut -d ' ' -f1)" = "${USE_SDK_SHA256SUM}" ] || exit 1;
         mkdir -p build
-        tar -xJf ${{ env.USE_SDK_FILE }} --strip-components=1 -C build
+        tar -xJf "${USE_SDK_FILE}" --strip-components=1 -C build
         rm -rf build/dl build/feeds
     - name: Clone qbt
       uses: actions/checkout@v3
@@ -181,10 +181,10 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        [ -n "$(find ${{ env.SAVED_NAME }} -type f -iname *qbittorrent*)" ] || exit 1
+        [ -n "$(find ${SAVED_NAME} -type f -iname *qbittorrent*)" ] || exit 1
         cd auto-build
-        hub release edit "${GITHUB_REF_NAME}" -a ../${{ env.SAVED_NAME }}.tar.xz -m ""
-        hub release edit "${GITHUB_REF_NAME}" -a ../${{ env.SAVED_NAME }}-keychain.bin -m ""
+        hub release edit "${GITHUB_REF_NAME}" -a "../${SAVED_NAME}.tar.xz" -m ""
+        hub release edit "${GITHUB_REF_NAME}" -a "../${SAVED_NAME}-keychain.bin" -m ""
     - name: Upload the Pkgs
       if: always() && steps.upload-release.outcome != 'success' && steps.pack-all.outputs.pkgs == 'true'
       uses: actions/upload-artifact@v3
@@ -214,7 +214,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/docker_images/test_docker.tar
-        key: docker-${{ env.RUN_ON_TARGET }}-${{ hashFiles('auto-build/docker/**') }}
+        key: docker-${{ env.RUN_ON_TARGET }}-${{ env.USE_OPENWRT_BRANCH }}-${{ hashFiles('auto-build/docker/**') }}
     - if: matrix.runtime_test && steps.cache-aptman.outputs.cache-hit != 'true' && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
       run: |
         docker pull aptman/qus
@@ -234,13 +234,13 @@ jobs:
       id: build-docker
       if: matrix.runtime_test && steps.cache-docker.outputs.cache-hit != 'true' && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
       run: |
-        docker build -t test-container --build-arg ARCH=${{ env.RUN_ON_TARGET }} --build-arg BRANCH=openwrt-21.02 ./auto-build/docker
+        docker build -t test-container --build-arg ARCH="${RUN_ON_TARGET}" --build-arg BRANCH="${USE_OPENWRT_BRANCH}" ./auto-build/docker
         mkdir -p ~/docker_images
         docker save -o ~/docker_images/test_docker.tar test-container
     - name: Test via Docker container
       if: matrix.runtime_test && (steps.cache-docker.outputs.cache-hit == 'true' || steps.build-docker.outcome == 'success')
       run: |
-        docker run --rm -v $GITHUB_WORKSPACE/${{ env.SAVED_NAME }}:/ci test-container
+        docker run --rm -v "${GITHUB_WORKSPACE}/${SAVED_NAME}":/ci test-container
   pre-release:
     if: needs.build-prep.outputs.draft == 'success'
     needs: [build-prep, build-matrix]

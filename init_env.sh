@@ -39,6 +39,10 @@ echo "USE_SDK_FILE=${USE_SDK_FILE}" >> $GITHUB_ENV
 echo "USE_SDK_SHA256SUM=${USE_SDK_SHA256SUM}" >> $GITHUB_ENV
 echo "USE_SOURCE_URL=${USE_SOURCE_URL}" >> $GITHUB_ENV
 
+# Openwrt tag for docker image
+USE_OPENWRT_BRANCH=openwrt-22.03
+echo "USE_OPENWRT_BRANCH=${USE_OPENWRT_BRANCH}" >> $GITHUB_ENV
+
 # curl SDK info
 http_code=$(curl -fksILZ -o /dev/null -w %{http_code} --compressed ${USE_SOURCE_URL}/version.buildinfo)
 echo $http_code
@@ -50,7 +54,7 @@ echo "USE_SDK_VERSION=${sdk_ver}" >> $GITHUB_ENV
 
 [ "${USE_RELEASE}" = "releases" ] && HEAD=v${USE_VERSION} || HEAD=HEAD
 feeds="${feeds}-$(git ls-remote ${GITHUB_SERVER_URL}/openwrt/openwrt.git $HEAD | head -c 9)"
-[ "${USE_RELEASE}" = "releases" ] && HEAD=openwrt-21.02 || HEAD=HEAD
+[ "${USE_RELEASE}" = "releases" ] && HEAD=${USE_OPENWRT_BRANCH} || HEAD=HEAD
 feeds="${feeds}-$(git ls-remote ${GITHUB_SERVER_URL}/openwrt/packages.git $HEAD | head -c 9)"
 # Do not depends on repo luci
 # feeds="${feeds}-$(git ls-remote ${GITHUB_SERVER_URL}/openwrt/luci.git $HEAD | head -c 9)"

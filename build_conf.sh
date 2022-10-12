@@ -20,7 +20,7 @@ sed -i 's/git.openwrt\.org\/feed/github.com\/openwrt/g' ./feeds.conf.default
 sed -i 's/git.openwrt\.org\/project\/luci/github.com\/openwrt\/luci/g' ./feeds.conf.default
 
 # Use the stable release snapshot feeds sources (should upgrade if update the release version).
-[ "${link_type}" = "dynamic" ] && sed -i 's/\(\.git\)\^\w\+/\1\;openwrt-21.02/g' ./feeds.conf.default
+[ "${link_type}" = "dynamic" ] && sed -i "s/\(\.git\)\^\w\+/\1\;${USE_OPENWRT_BRANCH}/g" ./feeds.conf.default
 
 # Sync with the source
 ./scripts/feeds update -a

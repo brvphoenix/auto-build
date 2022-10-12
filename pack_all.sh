@@ -3,8 +3,6 @@
 set -eET -o pipefail
 . ${GITHUB_WORKSPACE}/auto-build/build_default.sh
 
-. "$GITHUB_ENV"
-
 if [ "${CACHE_HIT}" = "true" ]; then
 	[ -f "${SAVED_NAME}.tar.xz" ] && {
 		tar -xJf ${SAVED_NAME}.tar.xz;
