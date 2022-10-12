@@ -112,14 +112,18 @@ EOF
 tar -cJf ${SAVED_NAME}.tar.xz ${SAVED_NAME}
 echo "::set-output name=pkgs::true"
 
+# hashFiles has different value with sha256sum
+echo "::set-output name=hash::$(sha256sum ${SAVED_NAME}.tar.xz | cut -d ' ' -f1)"
+
 # Compress and encrypt the keychain
 tar -czvf - ${BUILD_KEY}.ucert ${BUILD_KEY}.pub ${BUILD_KEY} | \
 openssl enc -aes-256-ctr -pbkdf2 -pass pass:${KEYCHAIN_SECRET} > ${SAVED_NAME}-keychain.bin
 # openssl enc -d -aes-256-ctr -pbkdf2 -pass pass:123456 -in ${SAVED_NAME}-keychain.bin | tar -xz
 
 # Clean up the obsolete packages
-[ ! -d "build/dl" ] || build/scripts/dl_cleanup.py build/dl 2>&1 >/dev/null
-rm -rf build/dl/libtorrent-rasterbar-*.tar.gz
-
-# hashFiles has different value with sha256sum
-echo "::set-output name=hash::$(sha256sum ${SAVED_NAME}.tar.xz | cut -d ' ' -f1)"
+if [ ! -d "build/dl" ]; then
+	cd build
+	./scripts/dl_cleanup.py 2>&1 >/dev/null
+	rm -rf dl/libtorrent-rasterbar-*.tar.gz
+	cd ..
+fi
