@@ -63,4 +63,5 @@ if [ "${link_type}" = "static" ]; then
 	sed -i '/(call BuildPackage,libpcre2)/i Package/libpcre2/install=true\nPackage/libpcre2-16/install=true\nPackage/libpcre2-32/install=true' feeds/packages/libs/pcre2/Makefile
 	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' package/self/libtorrent-rasterbar/Makefile
 	sed -i '/^define Package\/libtorrent-rasterbar$/{:a;N;/endef/!ba;s/\(endef\)/  BUILDONLY:=1\n\1/g}' package/self/libtorrent-rasterbar/Makefile
+	 sed -i "s/tool_present('aria2c', 'aria2')/0/g" scripts/download.pl
 fi
