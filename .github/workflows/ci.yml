@@ -156,7 +156,6 @@ jobs:
         path: |
           ${{ env.SAVED_NAME }}.tar.xz
           ${{ env.SAVED_NAME }}.log.tar.xz
-          ${{ env.SAVED_NAME }}-keychain.bin
         key: binary-${{ env.USE_RELEASE_NUMBER }}-${{ matrix.link }}-${{ matrix.arch }}-${{ env.USE_SDK_VERSION }}${{ env.USE_FEEDS_VERSION }}-${{ env.USE_LIBT_HASH }}-${{ hashFiles('mirror/**') }}
     - name: Build the Binary Files
       id: build-pkgs
@@ -171,7 +170,6 @@ jobs:
       id: pack-all
       if: always()
       env:
-        KEYCHAIN_SECRET: ${{ secrets.KEYCHAIN }}
         CACHE_HIT: ${{ steps.cache-bin.outputs.cache-hit }}
       run: |
         bash ./auto-build/pack_all.sh "${{ matrix.arch }}" "${{ matrix.link }}"
@@ -184,7 +182,6 @@ jobs:
         [ -n "$(find ${SAVED_NAME} -type f -iname *qbittorrent*)" ] || exit 1
         cd auto-build
         hub release edit "${GITHUB_REF_NAME}" -a "../${SAVED_NAME}.tar.xz" -m ""
-        hub release edit "${GITHUB_REF_NAME}" -a "../${SAVED_NAME}-keychain.bin" -m ""
     - name: Upload the Pkgs
       if: always() && steps.upload-release.outcome != 'success' && steps.pack-all.outputs.pkgs == 'true'
       uses: actions/upload-artifact@v3
@@ -199,7 +196,6 @@ jobs:
         name: ${{ env.SAVED_NAME }}-log-${{ steps.pack-all.outputs.hash }}
         path: |
           ./${{ env.SAVED_NAME }}.log.tar.xz
-          ${{ env.SAVED_NAME }}-keychain.bin
         if-no-files-found: error
     - name: Cache image aptman
       if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')

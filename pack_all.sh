@@ -47,7 +47,6 @@ BUILD_KEY=qbt-key
 export MKHASH=${STAGING_DIR_HOST}/bin/mkhash
 export PATH=${STAGING_DIR_HOST}/bin:$PATH
 usign -G -s ${BUILD_KEY} -p ${BUILD_KEY}.pub -c "Local qbt build key"
-ucert -I -c ${BUILD_KEY}.ucert -p ${BUILD_KEY}.pub -s ${BUILD_KEY}
 
 fingerprint=$(usign -F -p ${BUILD_KEY}.pub)
 cp ${BUILD_KEY}.pub "${KEY_DIR}/$fingerprint"
@@ -113,10 +112,10 @@ echo "pkgs=true" >> $GITHUB_OUTPUT
 # hashFiles has different value with sha256sum
 echo "hash=$(sha256sum ${SAVED_NAME}.tar.xz | cut -d ' ' -f1)" >> $GITHUB_OUTPUT
 
-# Compress and encrypt the keychain
-tar -czvf - ${BUILD_KEY}.ucert ${BUILD_KEY}.pub ${BUILD_KEY} | \
-openssl enc -aes-256-ctr -pbkdf2 -pass pass:${KEYCHAIN_SECRET} > ${SAVED_NAME}-keychain.bin
-# openssl enc -d -aes-256-ctr -pbkdf2 -pass pass:123456 -in ${SAVED_NAME}-keychain.bin | tar -xz
+## Compress and encrypt the keychain
+# tar -czvf - ${BUILD_KEY}.pub ${BUILD_KEY} | \
+# openssl enc -aes-256-ctr -pbkdf2 -pass pass:${KEYCHAIN_SECRET} > ${SAVED_NAME}-keychain.bin
+## openssl enc -d -aes-256-ctr -pbkdf2 -pass pass:123456 -in ${SAVED_NAME}-keychain.bin | tar -xz
 
 # Clean up the obsolete packages
 if [ ! -d "build/dl" ]; then
