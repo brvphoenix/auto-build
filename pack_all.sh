@@ -5,7 +5,6 @@ set -eET -o pipefail
 
 if [ "${CACHE_HIT}" = "true" ]; then
 	[ -f "${SAVED_NAME}.tar.xz" ] && {
-		tar -xJf ${SAVED_NAME}.tar.xz;
 		echo "$(sha256sum ${SAVED_NAME}.tar.xz)" > sha256sum-${SAVED_NAME}
 		echo "pkgs=true" >> $GITHUB_OUTPUT
 	} || echo "Not exist: ${SAVED_NAME}.tar.xz"

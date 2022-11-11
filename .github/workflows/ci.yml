@@ -122,14 +122,11 @@ jobs:
         path: auto-build
         persist-credentials: false
     - name: Install Dependencies
-      env:
-          run_test: ${{ matrix.runtime_test }}
       run: |
         [ -n "$(command -v jq)" ] && [ -n "$(command -v curl)" ] || {
         	sudo -E apt update
         	sudo -E apt -y install jq curl
         }
-        [ "$run_test" != "true" ] || sudo -E apt install skopeo
     - name: Initialize Environment
       id: init
       working-directory: ./auto-build
@@ -165,14 +162,11 @@ jobs:
         path: auto-build
         persist-credentials: false
     - name: Install Dependencies
-      env:
-          run_test: ${{ matrix.runtime_test }}
       run: |
         [ -n "$(command -v jq)" ] && [ -n "$(command -v curl)" ] || {
         	sudo -E apt update
         	sudo -E apt -y install jq curl
         }
-        [ "$run_test" != "true" ] || sudo -E apt install skopeo
     - name: Download init Env
       id: arch-depended-env
       uses: actions/download-artifact@v3
@@ -526,8 +520,62 @@ jobs:
         name: sha256sum-${{ env.SAVED_NAME }}
         path: sha256sum-${{ env.SAVED_NAME }}
         if-no-files-found: error
+  test-matrix:
+    name: Run test on ${{ matrix.link }}, ${{ matrix.arch }}, qt${{ matrix.qt }}, libtorrent_${{ matrix.libtorrent }}
+    needs: [build-prep, build-matrix]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.build-prep.outputs.matrix) }}
+    steps:
+    - name: Clone Current Repository
+      if: matrix.runtime_test
+      uses: actions/checkout@v3
+      with:
+        path: auto-build
+        persist-credentials: false
+    - name: Install Dependencies
+      if: matrix.runtime_test
+      run: |
+        [ -n "$(command -v curl)" ] && [ -n "$(command -v jq)" ] && [ -n "$(command -v skopeo)" ] || {
+        	sudo -E apt update
+        	sudo -E apt -y install curl jq skopeo
+        }
+    - name: Initialize Env
+      if: matrix.runtime_test
+      run: |
+        USE_TARGET=$(jq -r '.openwrt?."${{ matrix.arch }}"?.USE_TARGET'  ./auto-build/${{ matrix.link }}.json)
+        RUN_ON_TARGET=$(jq -r '.openwrt?."${{ matrix.arch }}"?.RUN_ON_TARGET'  ./auto-build/${{ matrix.link }}.json)
+        echo "RUN_ON_TARGET=$([ "$RUN_ON_TARGET" != "null" ] && echo $RUN_ON_TARGET || echo $USE_TARGET)" >> $GITHUB_ENV
+        echo "SAVED_NAME=${{ matrix.arch }}-${{ matrix.link }}-qt${{ matrix.qt }}-libtorrent_${{ matrix.libtorrent }}" >> $GITHUB_ENV
+        # Openwrt tag for docker image
+        echo "USE_OPENWRT_BRANCH=openwrt-22.03" >> $GITHUB_ENV
+        . $GITHUB_ENV
+
+        # Get the docker image hash
+        # library/busybox
+        skopeo inspect --format "{{.Digest}}" docker://docker.io/busybox | cut -d : -f 2 | xargs -i echo "USE_BUSYBOX_HASH={}" >> $GITHUB_ENV || exit 1
+
+        # multiarch/qemu-user-static
+        token=$(curl -s "https://auth.docker.io/token?scope=repository:multiarch/qemu-user-static:pull&service=registry.docker.io" | jq -r '.token')
+        curl -fskILZ -H "Accept: application/vnd.dockser.distribution.manifest.v2+json" \
+        	-H "Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/multiarch/qemu-user-static/manifests/latest" \
+        	| sed -n 's/docker-content-digest:\s\+sha256:\(\w\+\)/\1/gp' | xargs -i echo "USE_DOCKER_HASH={}" >> $GITHUB_ENV || exit 1
+
+        # openwrtorg/rootfs
+        token=$(curl -s "https://auth.docker.io/token?scope=repository:openwrtorg/rootfs:pull&service=registry.docker.io" | jq -r '.token')
+        curl -fskILZ -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+        	-H "Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/openwrtorg/rootfs/manifests/${RUN_ON_TARGET:-${USE_TARGET}}-${USE_OPENWRT_BRANCH}" \
+        	| sed -n 's/docker-content-digest:\s\+sha256:\(\w\+\)/\1/gp' | xargs -i echo "USE_ROOTFS_HASH={}" >> $GITHUB_ENV || exit 1
+    - name: Download the Pkgs
+      if: matrix.runtime_test
+      uses: actions/download-artifact@v3
+      with:
+        name: ${{ env.SAVED_NAME }}-pkgs
+    - if: matrix.runtime_test
+      run: tar -xvf ${SAVED_NAME}.tar.xz
     - name: Cache busybox
-      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
+      if: matrix.runtime_test
       id: cache-busybox
       uses: actions/cache@v3
       with:
@@ -536,13 +584,13 @@ jobs:
     - if: steps.cache-busybox.outputs.cache-hit == 'true'
       run: |
         docker load -i ~/docker_images/busybox.tar
-    - if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true') && steps.cache-busybox.cache-hit != 'true'
+    - if: matrix.runtime_test && steps.cache-busybox.cache-hit != 'true'
       run: |
         docker pull busybox:latest
         mkdir -p ~/docker_images
         docker save -o ~/docker_images/busybox.tar busybox:latest
     - name: Cache qemu-user-static
-      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
+      if: matrix.runtime_test
       id: cache-qus
       uses: actions/cache@v3
       with:
@@ -551,13 +599,13 @@ jobs:
     - if: steps.cache-qus.outputs.cache-hit == 'true'
       run: |
         docker load -i ~/docker_images/qus.tar
-    - if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true') && steps.cache-qus.outputs.cache-hit != 'true'
+    - if: matrix.runtime_test && steps.cache-qus.outputs.cache-hit != 'true'
       run: |
         docker pull multiarch/qemu-user-static:latest
         mkdir -p ~/docker_images
         docker save -o ~/docker_images/qus.tar multiarch/qemu-user-static:latest
     - name: Cache rootfs
-      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
+      if: matrix.runtime_test
       id: cache-rootfs
       uses: actions/cache@v3
       with:
@@ -566,14 +614,14 @@ jobs:
     - if: steps.cache-rootfs.outputs.cache-hit == 'true'
       run: |
         docker load -i ~/docker_images/openwrt_rootfs.tar
-    - if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true') && steps.cache-rootfs.outputs.cache-hit != 'true'
+    - if: matrix.runtime_test && steps.cache-rootfs.outputs.cache-hit != 'true'
       run: |
         docker pull openwrtorg/rootfs:${RUN_ON_TARGET}-${USE_OPENWRT_BRANCH}
         mkdir -p ~/docker_images
         docker save -o ~/docker_images/openwrt_rootfs.tar openwrtorg/rootfs:${RUN_ON_TARGET}-${USE_OPENWRT_BRANCH}
     - name: Build Docker container
       id: build-docker
-      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
+      if: matrix.runtime_test
       run: |
         # register
         docker build -t qemu-static ./auto-build/docker/qemu
@@ -662,7 +710,7 @@ jobs:
         failOnError: false
   pre-release:
     if: needs.build-prep.outputs.draft == 'success'
-    needs: [build-prep, build-matrix, post-clean]
+    needs: [build-prep, build-matrix, post-clean,test-matrix]
     runs-on: ubuntu-latest
     steps:
     - name: Clone Current Repository

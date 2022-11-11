@@ -63,23 +63,5 @@ fi
 
 echo "USE_RELEASE_NUMBER=${USE_RELEASE_NUMBER:-1}" >> $GITHUB_ENV
 
-# Get the docker image hash
-if [ "${RUNTIME_TEST}" = "true" ]; then
-	# library/busybox
-	skopeo inspect --format "{{.Digest}}" docker://docker.io/busybox | cut -d : -f 2 | xargs -i echo "USE_BUSYBOX_HASH={}" >> $GITHUB_ENV || exit 1
-
-	# multiarch/qemu-user-static
-	token=$(curl -s "https://auth.docker.io/token?scope=repository:multiarch/qemu-user-static:pull&service=registry.docker.io" | jq -r '.token')
-	curl -fskILZ -H "Accept: application/vnd.dockser.distribution.manifest.v2+json" \
-		-H "Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/multiarch/qemu-user-static/manifests/latest" \
-		| sed -n 's/docker-content-digest:\s\+sha256:\(\w\+\)/\1/gp' | xargs -i echo "USE_DOCKER_HASH={}" >> $GITHUB_ENV || exit 1
-
-	# openwrtorg/rootfs
-	token=$(curl -s "https://auth.docker.io/token?scope=repository:openwrtorg/rootfs:pull&service=registry.docker.io" | jq -r '.token')
-	curl -fskILZ -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-		-H "Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/openwrtorg/rootfs/manifests/${RUN_ON_TARGET:-${USE_TARGET}}-${USE_OPENWRT_BRANCH}" \
-		| sed -n 's/docker-content-digest:\s\+sha256:\(\w\+\)/\1/gp' | xargs -i echo "USE_ROOTFS_HASH={}" >> $GITHUB_ENV || exit 1
-fi
-
 echo $GITHUB_ENV
 cat $GITHUB_ENV
