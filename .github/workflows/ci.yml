@@ -86,7 +86,7 @@ jobs:
         sudo -E apt update
         sudo -E apt -y install build-essential curl flex gawk git jq libncurses5-dev \
         			libssl-dev python3 python3-distutils time xz-utils zlib1g-dev
-    - name: Initialize Environment
+    - name: Initializing
       working-directory: ./auto-build
       env:
         SUPER_TOKEN: ${{ secrets.SUPER_TOKEN }}
@@ -103,39 +103,46 @@ jobs:
     - run: |
         [ "$(sha256sum ${USE_SDK_FILE} | cut -d ' ' -f1)" = "${USE_SDK_SHA256SUM}" ] || exit 1;
         mkdir -p build
-        tar -xJf "${USE_SDK_FILE}" --strip-components=1 -C build
-        rm -rf build/dl build/feeds
-    - name: Clone qbt
-      uses: actions/checkout@v3
+        XZ_OPT='-T0' tar -xJf "${USE_SDK_FILE}" --strip-components=1 -C build
+    - name: Cache feeds
+      id: cache-feeds
+      uses: actions/cache@v3
       with:
-        ref: ${{ env.USE_QBT_HASH }}
-        repository: ${{ github.repository_owner }}/SomePackages
-        fetch-depth: 1
-        token: ${{ secrets.SUPER_TOKEN }}
-        path: qt_repo
-    - name: Clone libt
-      if: fromJson(env.USE_UPSTREAM_LIBT)
-      uses: actions/checkout@v3
-      with:
-        ref: ${{ env.USE_LIBT_HASH }}
-        repository: ${{ github.repository_owner }}/SomePackages
-        fetch-depth: 1
-        token: ${{ secrets.SUPER_TOKEN }}
-        path: libt_repo
-    - run: |
-        echo "USE_QT_VER=$(sed -n '/PKG_BASE:=/{N;s/PKG_BASE:=\([0-9.]\+\)\s\+PKG_BUGFIX:=\(\w\+\)/\1.\2/gp}' qt_repo/qbittorrent/qtbase/Makefile)" >> $GITHUB_ENV
-    - name: Cache feeds and downloaded source files (exclude Qt source)
+        path: |
+          build/feeds/*
+        key: feeds-${{ matrix.link }}${{ env.USE_FEEDS_VERSION }}
+        restore-keys: |
+          feeds-${{ matrix.link }}-
+          feeds-
+    - name: Prepare required packages
+      run: |
+        bash ./auto-build/build_pre.sh "${{ matrix.qt }}" "${{ matrix.libtorrent }}" "${{ matrix.link }}"
+    - name: Prepare building
+      env:
+        IGNORE_UPDATE_FEEDS: ${{ steps.cache-feeds.outputs.cache-hit }}
+      working-directory: ./build
+      run: |
+        bash ../auto-build/build_conf.sh "${{ matrix.qt }}" "${{ matrix.link }}"
+        echo "USE_QT_VER=$(sed -n '/PKG_BASE:=/{N;s/PKG_BASE:=\([0-9.]\+\)\s\+PKG_BUGFIX:=\(\w\+\)/\1.\2/gp}' ../mirror/package/self/qtbase/Makefile)" >> $GITHUB_ENV
+    - name: Cache downloaded source files (exclude Qt)
       uses: actions/cache@v3
       with:
         path: |
           build/dl/*
-          build/feeds/*
           !build/dl/qtbase-*.tar.xz
           !build/dl/qttools-*.tar.xz
-        key: source-${{ matrix.link }}${{ env.USE_FEEDS_VERSION }}-${{ hashFiles('auto-build/rsync/common/**', format('auto-build/rsync/{0}/**', matrix.link), '!auto-build/rsync/common/package/self/libtorrent-rasterbar_*') }}
+        key: source-${{ matrix.link }}-${{ hashFiles(
+             'build/package/self/**',
+             '!build/package/self/libtorrent-rasterbar/**',
+             '!build/package/self/qtbase/**',
+             '!build/package/self/qttools/**',
+             'build/feeds/base/package/libs/zlib/**',
+             'build/feeds/packages/libs/boost/**',
+             'build/feeds/base/package/libs/openssl/**',
+             'build/feeds/packages/libs/pcre2/**'
+             ) }}
         restore-keys: |
-          source-${{ matrix.link }}${{ env.USE_FEEDS_VERSION }}-
-          source-${{ matrix.link }}
+          source-${{ matrix.link }}-
           source-
     - name: Cache Qt source
       uses: actions/cache@v3
@@ -144,10 +151,6 @@ jobs:
           build/dl/qtbase-*-src-${{ env.USE_QT_VER }}.tar.xz
           build/dl/qttools-*-src-${{ env.USE_QT_VER }}.tar.xz
         key: qt-${{ env.USE_QT_VER }}
-    - name: Building preparation
-      working-directory: ./build
-      run: |
-        bash ../auto-build/build_pre.sh "${{ matrix.qt }}" "${{ matrix.libtorrent }}" "${{ matrix.link }}"
     - name: Cache binary
       if: needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true'
       id: cache-bin
@@ -156,14 +159,20 @@ jobs:
         path: |
           ${{ env.SAVED_NAME }}.tar.xz
           ${{ env.SAVED_NAME }}.log.tar.xz
-        key: binary-${{ env.USE_RELEASE_NUMBER }}-${{ matrix.link }}-${{ matrix.arch }}-${{ env.USE_SDK_VERSION }}${{ env.USE_FEEDS_VERSION }}-${{ env.USE_LIBT_HASH }}-${{ hashFiles('mirror/**') }}
+        key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}-{5}', env.USE_RELEASE_NUMBER, matrix.link, matrix.arch, env.USE_SDK_VERSION, env.USE_LIBT_HASH, 
+             hashFiles(
+             'build/package/self/**',
+             'build/feeds/base/package/libs/zlib/**',
+             'build/feeds/packages/libs/boost/**',
+             'build/feeds/base/package/libs/openssl/**',
+             'build/feeds/packages/libs/pcre2/**',
+             'auto-build/build_conf.sh'
+             )) }}
     - name: Build the Binary Files
       id: build-pkgs
       if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
       working-directory: ./build
       run: |
-        bash ../auto-build/build_conf.sh "${{ matrix.qt }}" "${{ matrix.link }}"
-
         make defconfig
         make package/luci-app-qbittorrent/compile V=sc -j$(($(nproc)+1)) BUILD_LOG=1
     - name: Pack all the flies

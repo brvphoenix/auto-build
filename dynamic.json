@@ -1,8 +1,8 @@
 {
 	"qbittorrent": {
 		"LIBTORRENT_VERSION": {
-			"1_2": "libt-1_2",
-			"2_0": "master"
+			"1_2": "",
+			"2_0": ""
 		},
 		"QT_VERSION": {
 			"5": "qt5-backport",

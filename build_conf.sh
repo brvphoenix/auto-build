@@ -22,10 +22,14 @@ sed -i 's/git.openwrt\.org\/project\/luci/github.com\/openwrt\/luci/g' ./feeds.c
 # Use the stable release snapshot feeds sources (should upgrade if update the release version).
 [ "${link_type}" = "dynamic" ] && sed -i "s/\(\.git\)\^\w\+/\1\;${USE_OPENWRT_BRANCH}/g" ./feeds.conf.default
 
-# Sync with the source
-./scripts/feeds update -a
+if [ "${IGNORE_UPDATE_FEEDS}" != "true" ]; then
+	# Sync with the source
+	echo "::group::Update feeds"
+	./scripts/feeds update -a
+	echo "::endgroup::"
+fi
 
-# Use custom libtorrent-rasterbar
+# Use customized libtorrent-rasterbar
 rm -rf feeds/packages/libs/libtorrent-rasterbar
 
 # Use customized pkgs
@@ -37,7 +41,9 @@ fi
 [ -d '../mirror' ] && rsync -a ../mirror/* ./ || exit 1
 
 # Update the indexs
+echo "::group::Install packages"
 make package/symlinks-install
+echo "::endgroup::"
 
 cat > .config <<EOF
 # CONFIG_ALL_KMODS is not set
