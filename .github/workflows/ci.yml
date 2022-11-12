@@ -236,7 +236,41 @@ jobs:
     - name: Test via Docker container
       if: matrix.runtime_test && (steps.cache-docker.outputs.cache-hit == 'true' || steps.build-docker.outcome == 'success')
       run: |
-        docker run --rm -v "${GITHUB_WORKSPACE}/${SAVED_NAME}":/ci test-container
+        docker_id=$(docker run -d -p 127.0.0.1:28181:28181 --rm -v $GITHUB_WORKSPACE/${{ env.SAVED_NAME }}:/ci test-container)
+        for timeout in {1..600}; do
+        	sleep 1
+        	if [ "$( docker container inspect -f '{{.State.Status}}' $docker_id )" = "running" ]; then
+        		if [ -n "$(docker exec $docker_id netstat -nl | grep 28181)" ]; then
+        			sid=$(curl -is \
+        				--header 'Referer: http://127.0.0.1:28181' \
+        				--data 'username=admin&password=adminadmin' \
+        				http://127.0.0.1:28181/api/v2/auth/login \
+        				| grep '^set-cookie' | sed -n 's/\S\+ SID=\([^\x0-\x1f ",;\\\x7f]\+\); .*/\1/gp' 2>&1);
+        		fi
+
+        		if [ -n "$sid" ] || [ "$timeout" -ge 600 ]; then
+        			printf "Startup delay: %ss\n" $timeout
+        			echo "::group::Docker logs"
+        			docker logs $docker_id -t
+        			echo "::endgroup::"
+        			break
+        		fi
+        	else
+        		echo "::error ::The docker is not running!"
+        		exit 1
+        	fi
+        done
+
+        [ -n "$sid" ] || { echo "Can't connect to qbittorrent!!!"; exit 1; }
+
+        echo "::group::qBittorrent info"
+        echo "-------------------------------------------"
+        curl -s http://127.0.0.1:28181/api/v2/app/version --cookie "SID=${sid}" | xargs -i echo "qBittorrent: {}"
+        curl -s http://127.0.0.1:28181/api/v2/app/webapiVersion --cookie "SID=${sid}" | xargs -i echo "WebAPI: {}"
+        echo "-------------------------------------------"
+        curl -s http://127.0.0.1:28181/api/v2/app/buildInfo --cookie "SID=${sid}" | jq -r 'to_entries[] | "\(.key): \(.value)"'
+        curl -s -X POST http://127.0.0.1:28181/api/v2/app/shutdown --cookie "SID=${sid}"
+        echo "::endgroup::"
   pre-release:
     if: needs.build-prep.outputs.draft == 'success'
     needs: [build-prep, build-matrix]
