@@ -94,7 +94,7 @@ jobs:
         		done
         	done
         done
-        [ "${matrix}" != "[]" ] || exit 1
+        [ "${matrix}" != "[]" ] || { echo "::error ::Matrix is empty!!!"; exit 1; }
         arch="$(echo "${matrix}" | jq -c 'map({("arch"): .arch, ("link"): .link}) | unique')"
         pkg="$(echo "${matrix}" | jq -c 'map({("link"): .link, ("libtorrent"): .libtorrent, ("qt"): .qt, ("arch"): .arch}) | unique_by({link, qt, libtorrent})')"
         echo "matrix={\"include\":${matrix}}" >> $GITHUB_OUTPUT
@@ -147,7 +147,7 @@ jobs:
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
       run: |
         curl -kLOZ --compressed ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
-        [ "$(sha256sum ${{ env.USE_SDK_FILE }} | cut -d ' ' -f1)" = "${{ env.USE_SDK_SHA256SUM }}" ] || exit 1;
+        [ "$(sha256sum ${{ env.USE_SDK_FILE }} | cut -d ' ' -f1)" = "${{ env.USE_SDK_SHA256SUM }}" ] || { echo "::error ::The hash of the SDK file is mismatched with that of the sha256sum!!!"; exit 1; }
   pkg-download:
     name: ${{ matrix.link }}, ${{ matrix.libtorrent }}, ${{ matrix.qt }}
     needs: [build-prep, sdk-download]
@@ -208,7 +208,7 @@ jobs:
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
       run: |
         curl -kLOZ --compressed ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
-        [ "$(sha256sum ${{ env.USE_SDK_FILE }} | cut -d ' ' -f1)" = "${{ env.USE_SDK_SHA256SUM }}" ] || exit 1;
+        [ "$(sha256sum ${{ env.USE_SDK_FILE }} | cut -d ' ' -f1)" = "${{ env.USE_SDK_SHA256SUM }}" ] || { echo "::error ::The hash of the SDK file is mismatched with that of the sha256sum!!!"; exit 1; }
     - run: |
         mkdir -p build
         XZ_OPT='-T0' tar -xJf "${USE_SDK_FILE}" --strip-components=1 -C build
@@ -348,7 +348,8 @@ jobs:
         if [ -f "${env_path}/init_env" ]; then
         	cat ${env_path}/init_env >> $GITHUB_ENV
         else
-        	exit 1
+        	echo "::error ::The initilized environmrnt file doesn't exist!!!";
+        	exit 1;
         fi
     - name: Download Env
       id: arch-independed-env
@@ -363,6 +364,7 @@ jobs:
         if [ -f "${env_path}/env" ]; then
         	cat ${env_path}//env >> $GITHUB_ENV
         else
+        	echo "::error ::The initilized environmrnt file doesn't exist!!!";
         	exit 1
         fi
 
@@ -377,7 +379,7 @@ jobs:
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
       run: |
         curl -kLOZ --compressed ${{ env.USE_SOURCE_URL }}/${{ env.USE_SDK_FILE }}
-        [ "$(sha256sum ${{ env.USE_SDK_FILE }} | cut -d ' ' -f1)" = "${{ env.USE_SDK_SHA256SUM }}" ] || exit 1;
+        [ "$(sha256sum ${{ env.USE_SDK_FILE }} | cut -d ' ' -f1)" = "${{ env.USE_SDK_SHA256SUM }}" ] || { echo "::error ::The hash of the SDK file is mismatched with that of the sha256sum!!!"; exit 1; }
     - run: |
         mkdir -p build
         XZ_OPT='-T0' tar -xJf "${USE_SDK_FILE}" --strip-components=1 -C build
@@ -495,7 +497,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        [ -n "$(find ${SAVED_NAME} -type f -iname *qbittorrent*)" ] || exit 1
+        [ -n "$(find ${SAVED_NAME} -type f -iname *qbittorrent*)" ] || { echo "::error ::Can't find the needed artifacts!!!"; exit 1; }
         cd auto-build
         hub release edit "${GITHUB_REF_NAME}" -a "../${SAVED_NAME}.tar.xz" -m ""
     - name: Upload the Pkgs
@@ -682,7 +684,7 @@ jobs:
         	echo "::endgroup::"
         fi
 
-        [ -n "$sid" ] || { echo "Can't connect to qbittorrent!!!"; exit 1; }
+        [ -n "$sid" ] || { echo "::error::Can't connect to qbittorrent!!!"; exit 1; }
   post-clean:
     needs: [build-prep, build-matrix]
     runs-on: ubuntu-latest
