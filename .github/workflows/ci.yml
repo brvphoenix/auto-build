@@ -110,7 +110,7 @@ jobs:
       with:
         path: |
           build/feeds/*
-        key: feeds-${{ matrix.link }}${{ env.USE_FEEDS_VERSION }}
+        key: feeds-${{ matrix.link }}-${{ env.USE_FEEDS_VERSION }}
         restore-keys: |
           feeds-${{ matrix.link }}-
           feeds-
