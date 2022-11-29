@@ -38,6 +38,10 @@ if [ "${qt_ver}" = "5" ]; then
 fi
 
 # Pathes has not been contained in the upstream.
-curl -kLOZ --compressed ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY_OWNER}/qBittorrent/commit/daaf8a6f5.patch
-mkdir -p ./mirror/package/self/qbittorrent/patches
-mv daaf8a6f5.patch ./mirror/package/self/qbittorrent/patches/0001-daaf8a6f5.patch
+mkdir -p ../mirror/package/self/qbittorrent/patches
+
+curl -kLOZ --compressed https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18076.patch
+mv 18076.patch ../mirror/package/self/qbittorrent/patches/0001-18076.patch
+
+curl -kLOZ --compressed https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18083.patch
+mv 18083.patch ../mirror/package/self/qbittorrent/patches/0002-18083.patch

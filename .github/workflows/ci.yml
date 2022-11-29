@@ -299,6 +299,8 @@ jobs:
         curl -s http://127.0.0.1:28181/api/v2/app/webapiVersion --cookie "SID=${sid}" | xargs -i echo "WebAPI: {}"
         echo "-------------------------------------------"
         curl -s http://127.0.0.1:28181/api/v2/app/buildInfo --cookie "SID=${sid}" | jq -r 'to_entries[] | "\(.key): \(.value)"'
+        echo "-------------------------------------------"
+        curl -s http://127.0.0.1:28181/api/v2/app/supportedLanguages --cookie "SID=${sid}" | jq -r 'to_entries[] | "\(.key): \(.value)"'
         curl -s -X POST http://127.0.0.1:28181/api/v2/app/shutdown --cookie "SID=${sid}"
         echo "::endgroup::"
   pre-release:
