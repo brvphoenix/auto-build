@@ -59,51 +59,56 @@ cd "$(echo ${PKGS_DIR} | sed 's/^\///g' | sed 's/\// /g' | sed 's/\S\+/../g' | s
 usign -S -m "${PKGS_DIR}/Packages" -s "${BUILD_KEY}"
 
 # Generate the install script
-cat > ${SAVED_NAME}/install.sh <<-EOF
-	#!/bin/sh
-	work_dir=\$(pwd)
-	script_dir="\$( cd "\$( dirname "\$0" )" && pwd )"
+sed 's/^    //g' > ${SAVED_NAME}/install.sh <<-"EOF"
+    #!/bin/sh
+    work_dir=$(pwd)
+    script_dir="$( cd "$( dirname "$0" )" && pwd )"
 
-	cd \${work_dir}
+    cd ${work_dir}
 
-	if [ -n "\$(opkg print-architecture | awk '{print \$2}' | grep '^${target_arch}\$')" ]; then
-	$(echo -e "\t")add_arch=0
-	else
-	$(echo -e "\t")add_arch=1
-	$(echo -e "\t")sed -i "\\\$a# qbt add start\\\\n\$(opkg print-architecture | sed ':a;N;\$!ba;s/\n/\\\n/g')\\\\narch ${target_arch} 1\\\\n# qbt add end" /etc/opkg.conf
-	fi
+    if [ -n "$(opkg print-architecture | awk '{print $2}' | grep '^${target_arch}$')" ]; then
+    	add_arch=0
+    else
+    	add_arch=1
+    	sed -i "\$a# qbt add start\n$(opkg print-architecture | sed ':a;N;$!ba;s/\n/\\\n/g')\narch ${target_arch} 1\n# qbt add end" /etc/opkg.conf
+    fi
 
-	case "\$1" in
-	$(echo -e "\t")install)
-	$(echo -e "\t\t")cp \${script_dir}/key/$fingerprint /etc/opkg/keys
-	$(echo -e "\t\t")sed -i "\\\$asrc\\/gz openwrt_qbt file\\:\$(echo \${script_dir}/pkgs | sed 's/\//\\\\\//g')" /etc/opkg/customfeeds.conf
+    case "$1" in
+    	install)
+    		cp ${script_dir}/key/$fingerprint /etc/opkg/keys
+    		sed -i "\$asrc\/gz openwrt_qbt file:\/\/$(echo ${script_dir}/pkgs | sed 's/\//\\\//g')" /etc/opkg/customfeeds.conf
 
-	$(echo -e "\t\t")opkg print-architecture
+    		opkg print-architecture
 
-	$(echo -e "\t\t")mkdir -p /var/opkg-lists/
-	$(echo -e "\t\t")cp \${script_dir}/pkgs/Packages.gz /var/opkg-lists/openwrt_qbt
-	$(echo -e "\t\t")cp \${script_dir}/pkgs/Packages.sig /var/opkg-lists/openwrt_qbt.sig
+    		mkdir -p /var/opkg-lists/
+    		cp ${script_dir}/pkgs/Packages.gz /var/opkg-lists/openwrt_qbt
+    		cp ${script_dir}/pkgs/Packages.sig /var/opkg-lists/openwrt_qbt.sig
 
-	$(echo -e "\t\t")opkg install luci-i18n-qbittorrent-zh-cn
-	$(echo -e "\t\t")sed -i "/src\\/gz openwrt_qbt file\\:\$(echo \${script_dir}/pkgs | sed 's/\//\\\\\//g')/d" /etc/opkg/customfeeds.conf
-	$(echo -e "\t\t")rm -rf /etc/opkg/keys/$fingerprint
-	$(echo -e "\t");;
-	$(echo -e "\t")remove)
-	$(echo -e "\t\t")opkg --force-removal-of-dependent-packages \$@
-	$(echo -e "\t");;
-	$(echo -e "\t")*)
-	$(echo -e "\t\t")echo "Usage:"
-	$(echo -e "\t\t")echo "	\$0 [sub-command]"
-	$(echo -e "\t\t")echo ""
-	$(echo -e "\t\t")echo "Commands:"
-	$(echo -e "\t\t")echo "	install			Install qbittorrent and its depends"
-	$(echo -e "\t\t")echo "	remove <pkgs>		Uninstall pkgs"
-	$(echo -e "\t\t")echo ""
-	$(echo -e "\t");;
-	esac
+    		opkg install qbittorrent
+    		opkg install luci-app-qbittorrent
+    		opkg install luci-i18n-qbittorrent-zh-cn
+    		sed -i "/src\/gz openwrt_qbt file:\/\/$(echo ${script_dir}/pkgs | sed 's/\//\\\//g')/d" /etc/opkg/customfeeds.conf
+    		rm -rf /etc/opkg/keys/$fingerprint
+    	;;
+    	remove)
+    		opkg --force-removal-of-dependent-packages $@
+    	;;
+    	*)
+    		echo "Usage:"
+    		echo "	$0 [sub-command]"
+    		echo ""
+    		echo "Commands:"
+    		echo "	install			Install qbittorrent and its depends"
+    		echo "	remove <pkgs>		Uninstall pkgs"
+    		echo ""
+    	;;
+    esac
 
-	[ "\$add_arch" = 1 ] && sed -i '/# qbt add start/{:a;N;/# qbt add end/!ba;d}' /etc/opkg.conf || exit 0
+    [ "$add_arch" = 1 ] && sed -i '/# qbt add start/{:a;N;/# qbt add end/!ba;d}' /etc/opkg.conf || exit 0
 EOF
+
+sed -i "s/\${target_arch}/${target_arch}/g" ${SAVED_NAME}/install.sh
+sed -i "s/\$fingerprint/${fingerprint}/g" ${SAVED_NAME}/install.sh
 
 # Compress the pkgs
 tar -cJf ${SAVED_NAME}.tar.xz ${SAVED_NAME}
