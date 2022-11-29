@@ -3,23 +3,6 @@
 set -eET -o pipefail
 . ${GITHUB_WORKSPACE}/auto-build/build_default.sh
 
-function cloneBySha() {
-	local url=$1
-	local directory=$2
-	local rev=$3
-	local branch=${rev:-tmp}
-	local curdir=$(pwd)
-	mkdir -p $directory
-	cd $directory
-	git init 2>&1 >>/dev/null
-	git remote add origin "$url"
-	git fetch --depth 1 origin $rev 2>&1 >>/dev/null
-	git switch -C "$branch" FETCH_HEAD 2>&1 >>/dev/null
-	# git log -1 --pretty=format:"%h"
-	echo $(git rev-parse --short=10 HEAD)
-	cd ${curdir}
-}
-
 target_arch=$1
 link_type=$2
 qt_ver=$3
@@ -55,15 +38,14 @@ echo "USE_SDK_SHA256SUM=${USE_SDK_SHA256SUM}" >> $GITHUB_ENV
 echo "USE_SOURCE_URL=${USE_SOURCE_URL}" >> $GITHUB_ENV
 
 # QBT source and libtorrent source info
-QBT_BRANCH=$(jq -r '.qbittorrent.QT_VERSION?."'${qt_ver}'"' ${JSON_FILE})
-cloneBySha https://${GITHUB_REPOSITORY_OWNER}:${SUPER_TOKEN}@github.com/${GITHUB_REPOSITORY_OWNER}/SomePackages.git ../qt_repo "${QBT_BRANCH}" >> /dev/null
+echo USE_QBT_REFS=$(jq -r '.qbittorrent.QT_VERSION?."'${qt_ver}'"' ${JSON_FILE}) >> $GITHUB_ENV
 
-LIBT_BRANCH=$(jq -r '.qbittorrent.LIBTORRENT_VERSION?."'${libt_ver}'" // empty' ${JSON_FILE})
-if [ -z "${LIBT_BRANCH}" -a -d "../auto-build/rsync/common/package/self/libtorrent-rasterbar_${libt_ver}" ]; then
+LIBT_REFS=$(jq -r '.qbittorrent.LIBTORRENT_VERSION?."'${libt_ver}'" // empty' ${JSON_FILE})
+if [ -z "${LIBT_REFS}" -a -d "../auto-build/rsync/common/package/self/libtorrent-rasterbar_${libt_ver}" ]; then
 	echo "USE_LIBT_LOCAL=true" >> $GITHUB_ENV
 	echo USE_LIBT_HASH=$(git ls-remote ${GITHUB_SERVER_URL}/arvidn/libtorrent refs/heads/RC_${libt_ver} | head -c 10) >> $GITHUB_ENV
 else
-	echo USE_LIBT_HASH=$(cloneBySha https://${GITHUB_REPOSITORY_OWNER}:${SUPER_TOKEN}@github.com/${GITHUB_REPOSITORY_OWNER}/SomePackages.git ../libt_repo "${LIBT_BRANCH}") >> $GITHUB_ENV
+	echo "USE_LIBT_REFS=${LIBT_REFS}" >> $GITHUB_ENV
 fi
 
 # Openwrt tag for docker image

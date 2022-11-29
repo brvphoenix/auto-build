@@ -114,6 +114,23 @@ jobs:
         restore-keys: |
           feeds-${{ matrix.link }}-
           feeds-
+    - name: Clone qbt
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ env.USE_QBT_REFS }}
+        repository: ${{ github.repository_owner }}/SomePackages
+        fetch-depth: 1
+        token: ${{ secrets.SUPER_TOKEN }}
+        path: qt_repo
+    - name: Clone libt
+      if: env.USE_LIBT_LOCAL != 'true'
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ env.USE_LIBT_REFS }}
+        repository: ${{ github.repository_owner }}/SomePackages
+        fetch-depth: 1
+        token: ${{ secrets.SUPER_TOKEN }}
+        path: libt_repo
     - name: Prepare required packages
       run: |
         bash ./auto-build/build_pre.sh "${{ matrix.qt }}" "${{ matrix.libtorrent }}" "${{ matrix.link }}"
@@ -123,7 +140,11 @@ jobs:
       working-directory: ./build
       run: |
         bash ../auto-build/build_conf.sh "${{ matrix.qt }}" "${{ matrix.link }}"
-        echo "USE_QT_VER=$(sed -n '/PKG_BASE:=/{N;s/PKG_BASE:=\([0-9.]\+\)\s\+PKG_BUGFIX:=\(\w\+\)/\1.\2/gp}' ../mirror/package/self/qtbase/Makefile)" >> $GITHUB_ENV
+    - if: env.USE_LIBT_HASH == ''
+      run: |
+        echo USE_LIBT_HASH=$(sed -n 's/PKG_HASH:=\(\w\+\)/\1/gp' ./mirror/package/self/libtorrent-rasterbar/Makefile | head -c 10)" >> $GITHUB_ENV
+    - run: |
+        echo "USE_QT_VER=$(sed -n '/PKG_BASE:=/{N;s/PKG_BASE:=\([0-9.]\+\)\s\+PKG_BUGFIX:=\(\w\+\)/\1.\2/gp}' ./mirror/package/self/qtbase/Makefile)" >> $GITHUB_ENV
     - name: Cache downloaded source files (exclude Qt)
       uses: actions/cache@v3
       with:
