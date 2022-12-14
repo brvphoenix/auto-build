@@ -38,10 +38,15 @@ if [ "${qt_ver}" = "5" ]; then
 fi
 
 # Pathes has not been contained in the upstream.
-mkdir -p ../mirror/package/self/qbittorrent/patches
+mkdir -p ./mirror/package/self/qbittorrent/patches
 
-curl -kLOZ --compressed https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18076.patch
-mv 18076.patch ../mirror/package/self/qbittorrent/patches/0001-18076.patch
+curl -kLOZ --compressed https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18231.patch
+mv 18231.patch ./mirror/package/self/qbittorrent/patches/0000-18231.patch
 
-curl -kLOZ --compressed https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18083.patch
-mv 18083.patch ../mirror/package/self/qbittorrent/patches/0002-18083.patch
+# Hotfixes for official v4_5_x
+curl -kLZ --compressed -o 0001.patch https://github.com/qbittorrent/qBittorrent/compare/release-4.5.0...v4_5_x.patch
+mv 0001.patch ./mirror/package/self/qbittorrent/patches/0001.patch
+
+# Log view
+curl -kLZ --compressed -o 0002.patch https://github.com/brvphoenix/qBittorrent/compare/84fabf14c8667d153375d1041fe508dfc66d0fee...logs.patch
+mv 0002.patch ./mirror/package/self/qbittorrent/patches/0002.patch
