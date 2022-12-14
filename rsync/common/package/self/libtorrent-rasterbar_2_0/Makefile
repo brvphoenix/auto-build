@@ -5,7 +5,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libtorrent-rasterbar
-PKG_VERSION:=2.0.7
+PKG_VERSION:=RC_2_0
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
