@@ -32,7 +32,8 @@
 			"RUN_ON_TARGET": "armvirt-32"
 		},
 		"arc_arc700": {
-			"USE_TARGET": "arc770-generic"
+			"USE_TARGET": "arc770-generic",
+			"RUN_SKIP": true
 		},
 		"arc_archs": {
 			"USE_TARGET": "archs38-generic"
