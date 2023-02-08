@@ -45,13 +45,17 @@ mkdir -p ${MIRROR_SELF_DIR}/qbittorrent/patches
 
 PATCH_DIR=${MIRROR_SELF_DIR}/qbittorrent/patches
 # Hotfixes for official v4_5_x
-curl -kLZ --compressed -o ${PATCH_DIR}/0001.patch https://github.com/qbittorrent/qBittorrent/compare/release-4.5.0...v4_5_x.patch
+curl -kLZ --compressed -o ${PATCH_DIR}/0001.patch https://github.com/qbittorrent/qBittorrent/compare/release-4.5.1...v4_5_x.patch
 
 # Backport
-curl -kLZ --compressed -o ${PATCH_DIR}/0002.patch https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18452.patch
+# curl -kLZ --compressed -o ${PATCH_DIR}/0002.patch https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18452.patch
 
 # Log view
 curl -kLZ --compressed -o ${PATCH_DIR}/0003.patch https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18290.patch
 
-# Should be removed after v4.5.1
-rm -rf ${PATCH_DIR}/0001-Unify-the-way-to-generate-the-language-list-in-WebUI.patch
+# Log setting and compressing
+curl -kLZ --compressed -o ${PATCH_DIR}/0004.patch https://github.com/brvphoenix/qBittorrent/compare/filelogger-compressed~4...filelogger-compressed.patch
+rm -rf ${PATCH_DIR}/0806-filelogger.patch
+
+# CleanUp
+curl -kLZ --compressed -o ${PATCH_DIR}/0005.patch https://github.com/brvphoenix/qBittorrent/compare/cleanup~2...cleanup.patch
