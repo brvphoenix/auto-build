@@ -88,8 +88,6 @@ jobs:
         			libssl-dev python3 python3-distutils time xz-utils zlib1g-dev
     - name: Initializing
       working-directory: ./auto-build
-      env:
-        SUPER_TOKEN: ${{ secrets.SUPER_TOKEN }}
       run: |
         bash ./init_env.sh "${{ matrix.arch }}" "${{ matrix.link }}" "${{ matrix.qt }}" "${{ matrix.libtorrent }}"
     - name: Cache SDK
