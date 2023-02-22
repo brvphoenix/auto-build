@@ -34,7 +34,7 @@ rm -rf feeds/packages/libs/libtorrent-rasterbar
 
 # Use customized pkgs
 if [ "${link_type}" = "static" ]; then
-	rm -rf feeds/base/package/libs/openssl
+#	rm -rf feeds/base/package/libs/openssl
 	rm -rf feeds/packages/libs/pcre2
 fi
 
@@ -69,4 +69,9 @@ if [ "${link_type}" = "static" ]; then
 	sed -i '/(call BuildPackage,libpcre2)/i Package/libpcre2/install=true\nPackage/libpcre2-16/install=true\nPackage/libpcre2-32/install=true' feeds/packages/libs/pcre2/Makefile
 	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' package/self/libtorrent-rasterbar/Makefile
 	sed -i '/^define Package\/libtorrent-rasterbar$/{:a;N;/endef/!ba;s/\(endef\)/  BUILDONLY:=1\n\1/g}' package/self/libtorrent-rasterbar/Makefile
+
+	# Disable deprecated features if built statically
+	if [ "${libt_ver}" = "2_0" ]; then
+		sed -i 's/\(OPENSSL_OPTIONS:=.*\)$/\1 no-deprecated/' feeds/base/package/libs/openssl/Makefile
+	fi
 fi
