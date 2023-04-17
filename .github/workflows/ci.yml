@@ -278,9 +278,7 @@ jobs:
 
         		if [ -n "$sid" ] || [ "$timeout" -ge 600 ]; then
         			printf "Startup delay: %ss\n" $timeout
-        			echo "::group::Docker logs"
-        			docker logs $docker_id -t
-        			echo "::endgroup::"
+        			docker logs "${docker_id}" -t -f &> /tmp/openwrt-docker.log &
         			break
         		fi
         	else
@@ -293,11 +291,20 @@ jobs:
 
         echo "::group::qBittorrent info"
         echo "-------------------------------------------"
-        curl -s http://127.0.0.1:28181/api/v2/app/version --cookie "SID=${sid}" | xargs -i echo "qBittorrent: {}"
-        curl -s http://127.0.0.1:28181/api/v2/app/webapiVersion --cookie "SID=${sid}" | xargs -i echo "WebAPI: {}"
+        curl -s http://127.0.0.1:28181/api/v2/app/version --cookie "SID=${sid}" | xargs echo "qBittorrent:"
+        curl -s http://127.0.0.1:28181/api/v2/app/webapiVersion --cookie "SID=${sid}" | xargs echo "WebAPI:"
         echo "-------------------------------------------"
         curl -s http://127.0.0.1:28181/api/v2/app/buildInfo --cookie "SID=${sid}" | jq -r 'to_entries[] | "\(.key): \(.value)"'
         curl -s -X POST http://127.0.0.1:28181/api/v2/app/shutdown --cookie "SID=${sid}"
+        echo "::endgroup::"
+        for timeout in {1..600}; do
+        	shotId=$(echo $sid | cut -c 12)
+        	[ -n "$(docker ps --format '{{.ID}}' | grep "${shortId}")" ] && sleep 1 || break;
+        done
+        echo "::group::Docker logs"
+        if [ -f /tmp/openwrt-docker.log ]; then
+        	cat /tmp/openwrt-docker.log
+        fi
         echo "::endgroup::"
   pre-release:
     if: needs.build-prep.outputs.draft == 'success'

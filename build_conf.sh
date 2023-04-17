@@ -7,11 +7,13 @@ qt_ver=$1
 link_type=$2
 
 # Restore the modified feeds sources
-for d in $([ ! -d feeds ] || ls feeds | cut -d . -f 1 | sort | uniq); do
-	cd feeds/$d;
-	git checkout .;
-	git clean -df;
-	cd ../..;
+for d in base packages luci routing telephony; do
+	if [ -d "feeds/$d" ]; then
+		cd feeds/$d;
+		git checkout .;
+		git clean -df;
+		cd ../..;
+	fi
 done
 
 # use the github source
@@ -34,7 +36,9 @@ rm -rf feeds/packages/libs/libtorrent-rasterbar
 
 # Use customized pkgs
 if [ "${link_type}" = "static" ]; then
-#	rm -rf feeds/base/package/libs/openssl
+	# Sync openssl module
+	[ -z "$(ls include/openssl1-*.mk &>/dev/null)" ] || rsync -a feeds/base/include/openssl-*.mk include
+
 	rm -rf feeds/packages/libs/pcre2
 fi
 

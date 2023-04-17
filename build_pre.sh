@@ -25,9 +25,6 @@ rm -rf ./auto-build/rsync/common/package/self/libtorrent-rasterbar_*
 [ -d "./auto-build/rsync/common" ] && rsync -a ./auto-build/rsync/common/* ${MIRROR_DIR}
 [ -d "./auto-build/rsync/${link_type}" ] && rsync -a ./auto-build/rsync/${link_type}/* ${MIRROR_DIR}
 
-# Add no-deprecated when built with openssl 3.0.x, libtorrent RC_2_0 and static linkage.
-#[ -d ${MIRROR_SELF_DIR}/openssl ] && [ "${libt_ver}" = "2_0" ] && [ "${link_type}" = "static" ] && sed -i 's/\(OPENSSL_OPTIONS:=.*\)$/\1 no-deprecated/' ${MIRROR_SELF_DIR}/openssl/Makefile
-
 # Update the release number according the tag number
 sed -i 's/^\(PKG_RELEASE\)=\S\+/\1='${USE_RELEASE_NUMBER:-1}'/g' ${MIRROR_SELF_DIR}/qbittorrent/Makefile
 
@@ -46,20 +43,20 @@ fi
 mkdir -p ${MIRROR_SELF_DIR}/qbittorrent/patches
 
 PATCH_DIR=${MIRROR_SELF_DIR}/qbittorrent/patches
-# Hotfixes for official v4_5_x
-curl -kLZ --compressed -o ${PATCH_DIR}/0001.patch https://github.com/qbittorrent/qBittorrent/compare/release-4.5.2...v4_5_x.patch
+# Hotfixes and backport for official v4_5_x
+curl -kLZ --compressed -o ${PATCH_DIR}/0001.patch https://github.com/brvphoenix/qBittorrent/compare/release-4.5.2...stable_backup.patch
 
-# Backport
-# curl -kLZ --compressed -o ${PATCH_DIR}/0002.patch https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18452.patch
+# # Backport
+# curl -kLZ --compressed -o ${PATCH_DIR}/0002.patch https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18727.patch
 
-# Log view
-curl -kLZ --compressed -o ${PATCH_DIR}/0003.patch https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18290.patch
+# # Log view
+# curl -kLZ --compressed -o ${PATCH_DIR}/0003.patch https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18290.patch
 
-# Log setting
-curl -kLZ --compressed -o ${PATCH_DIR}/0004-1.patch https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18506.patch
+# # Log setting
+# curl -kLZ --compressed -o ${PATCH_DIR}/0004-1.patch https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18506.patch
 
-# Log compressing
-curl -kLZ --compressed -o ${PATCH_DIR}/0004-2.patch https://github.com/brvphoenix/qBittorrent/compare/filelogger-compressed~6...filelogger-compressed.patch
+# # Log compressing
+# curl -kLZ --compressed -o ${PATCH_DIR}/0004-2.patch https://github.com/brvphoenix/qBittorrent/compare/compress-backup~1...compress.patch
 rm -rf ${PATCH_DIR}/0806-filelogger.patch
 
 ## CleanUp
