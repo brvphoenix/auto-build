@@ -19,9 +19,38 @@ on:
         - dynamic
         - static
         - all
+      arch:
+        description: 'Architecture'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - aarch64
+        - arm
+        - x86
+        - mips
+        - all
+      qt:
+        description: 'QT version'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - 5
+        - 6
+        - all
+      lt:
+        description: 'libtorrent branch'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - 1.2
+        - 2.0
+        - all
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-format("{0}-{1}-{2}-{3}", github.event.inputs.type, github.event.inputs.arch, github.event.inputs,qt, github.event.inputs.lt)
   cancel-in-progress: true
 
 jobs:
@@ -49,10 +78,15 @@ jobs:
         	[ -z "${{ github.event.inputs.type }}" ] || [ "${{ github.event.inputs.type }}" = "all" ] || [ "${{ github.event.inputs.type }}" = "${link}" ] || continue;
         	[ "$(jq -r '.openwrt.RUN_SKIP? // false' ${json_file})" = "false" ] || continue;
         	for arch in $(jq -r '.openwrt | to_entries[] | select((.value | type) == "object") | .key' ${json_file}); do
+        		arch_wo_endian=${{ github.event.inputs.arch }}
+        		arch_w_endian=$(echo $arch | cut -d '_' -f 1)
+        		[ -z "${arch_wo_endian}" ] || [ "${arch_wo_endian}" = "all" ] || [ "${arch_wo_endian}" = "${arch_w_endian}" ] || [ "${arch_wo_endian}el" = "${arch_w_endian}" ] || [ "${arch_wo_endian}eb" = "${arch_w_endian}" ] || continue;
         		[ "$(jq -r '.openwrt."'$arch'".RUN_SKIP? // false' ${json_file})" = "false" ] || continue;
         		runtime_test=$(jq -r '.openwrt."'$arch'".RUNTIME_TEST? // false' ${json_file})
         		for libtorrent in $(jq -r '.qbittorrent.LIBTORRENT_VERSION? | to_entries[]? | .key?' ${json_file}); do
+        			[ -z "${{ github.event.inputs.lt }}" ] || [ "${{ github.event.inputs.lt }}" = "all" ] || [ "${{ github.event.inputs.lt }}" = "${libtorrent/_/.}" ] || continue;
         			for qt in $(jq -r '.qbittorrent.QT_VERSION? | to_entries[]? | .key?' ${json_file}); do
+        				[ -z "${{ github.event.inputs.qt }}" ] || [ "${{ github.event.inputs.qt }}" = "all" ] || [ "${{ github.event.inputs.qt }}" = "${qt}" ] || continue;
         				matrix="$(echo $matrix | jq -c '. += [{libtorrent:"'${libtorrent}'",qt:"'${qt}'",link:"'${link}'",arch:"'${arch}'",runtime_test:'${runtime_test}'}]')"
         			done
         		done
