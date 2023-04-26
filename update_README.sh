@@ -4,6 +4,7 @@ set -eET -o pipefail
 . ./build_default.sh
 
 VERSION=${1:-0.0.0}
+BRANCH="$(echo $VERSION | cut -d '.' -f 1,2 | tr '.' '_')_x"
 GITHUB_SERVER_URL=https://github.com
 
 for ver in RC_1_2 RC_2_0; do
@@ -13,3 +14,4 @@ for ver in RC_1_2 RC_2_0; do
 done
 
 sed -i 's/\(# Version\) \S\+$/\1 '$VERSION'/g' ./README.md
+sed -i '/\[ChangeLog\]/ s/\/blob\/v[0-9]\+_[0-9]\+_x\//\/blob\/v'$BRANCH'\//g' ./README.md

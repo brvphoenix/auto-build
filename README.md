@@ -4,8 +4,8 @@
 [![GitHub Latest Releases](https://img.shields.io/github/downloads-pre/brvphoenix/auto-build/latest/total)](https://github.com/brvphoenix/auto-build/releases)
 [![Lastest Release](https://img.shields.io/github/release/brvphoenix/auto-build.svg?style=flat)](https://github.com/brvphoenix/auto-build/releases)
 
-# Version 4.5.2-2
-[ChangeLog](https://github.com/qbittorrent/qBittorrent/blob/v4_4_x/Changelog)
+# Version 4.5.2-3
+[ChangeLog](https://github.com/qbittorrent/qBittorrent/blob/v4_5_x/Changelog)
 
 # Depends (dynamic / static)
 * Boost 1.78.0 / 1.82.0
