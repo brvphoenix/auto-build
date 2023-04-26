@@ -82,10 +82,13 @@ jobs:
         path: auto-build
         persist-credentials: false
     - name: Install Dependencies
+      env:
+          run_test: ${{ matrix.runtime_test }}
       run: |
         sudo -E apt update
         sudo -E apt -y install build-essential curl flex gawk git jq libncurses5-dev \
-        			libssl-dev python3 python3-distutils time xz-utils zlib1g-dev
+        			libssl-dev python3 python3-distutils xz-utils zlib1g-dev
+        [ "$run_test" = "true" ] || sudo -E apt install skopeo
     - name: Initializing
       working-directory: ./auto-build
       run: |
@@ -225,87 +228,109 @@ jobs:
         path: |
           ./${{ env.SAVED_NAME }}.log.tar.xz
         if-no-files-found: error
-    - name: Cache image aptman
+    - name: Cache busybox
       if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
-      id: cache-aptman
+      id: cache-busybox
       uses: actions/cache@v3
       with:
-        path: ~/docker_images/aptman_qus.tar
-        key: docker-${{ env.USE_DOCKER_HASH }}
-    - name: Cache docker image
-      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
-      id: cache-docker
-      uses: actions/cache@v3
-      with:
-        path: ~/docker_images/test_docker.tar
-        key: docker-${{ env.RUN_ON_TARGET }}-${{ env.USE_OPENWRT_BRANCH }}-${{ hashFiles('auto-build/docker/**') }}
-    - if: matrix.runtime_test && steps.cache-aptman.outputs.cache-hit != 'true' && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
+        path: ~/docker_images/busybox.tar
+        key: docker-busybox-${{ env.USE_BUSYBOX_HASH }}
+    - if: steps.cache-busybox.outputs.cache-hit == 'true'
       run: |
-        docker pull aptman/qus
+        docker load -i ~/docker_images/busybox.tar
+    - if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true') && steps.cache-busybox.cache-hit != 'true'
+      run: |
+        docker pull busybox:latest
         mkdir -p ~/docker_images
-        docker save -o ~/docker_images/aptman_qus.tar aptman/qus
-    - if: steps.cache-aptman.outputs.cache-hit == 'true'
-      run: |
-        docker load -i ~/docker_images/aptman_qus.tar
-    - if: steps.cache-docker.outputs.cache-hit == 'true'
-      run: |
-        docker load -i ~/docker_images/test_docker.tar
-    - name: Register QEMU
+        docker save -o ~/docker_images/busybox.tar busybox:latest
+    - name: Cache qemu-user-static
       if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
+      id: cache-qus
+      uses: actions/cache@v3
+      with:
+        path: ~/docker_images/qus.tar
+        key: docker-qus-${{ env.USE_DOCKER_HASH }}
+    - if: steps.cache-qus.outputs.cache-hit == 'true'
       run: |
-        docker run --rm --privileged aptman/qus -s -- -p
+        docker load -i ~/docker_images/qus.tar
+    - if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true') && steps.cache-qus.outputs.cache-hit != 'true'
+      run: |
+        docker pull multiarch/qemu-user-static:latest
+        mkdir -p ~/docker_images
+        docker save -o ~/docker_images/qus.tar multiarch/qemu-user-static:latest
+    - name: Cache rootfs
+      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
+      id: cache-rootfs
+      uses: actions/cache@v3
+      with:
+        path: ~/docker_images/openwrt_rootfs.tar
+        key: docker-${{ env.RUN_ON_TARGET }}-${{ env.USE_OPENWRT_BRANCH }}-${{ env.USE_ROOTFS_HASH }}
+    - if: steps.cache-rootfs.outputs.cache-hit == 'true'
+      run: |
+        docker load -i ~/docker_images/openwrt_rootfs.tar
+    - if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true') && steps.cache-rootfs.outputs.cache-hit != 'true'
+      run: |
+        docker pull openwrtorg/rootfs:${RUN_ON_TARGET}-${USE_OPENWRT_BRANCH}
+        mkdir -p ~/docker_images
+        docker save -o ~/docker_images/openwrt_rootfs.tar openwrtorg/rootfs:${RUN_ON_TARGET}-${USE_OPENWRT_BRANCH}
     - name: Build Docker container
       id: build-docker
-      if: matrix.runtime_test && steps.cache-docker.outputs.cache-hit != 'true' && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
+      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
       run: |
-        docker build -t test-container --build-arg ARCH="${RUN_ON_TARGET}" --build-arg BRANCH="${USE_OPENWRT_BRANCH}" ./auto-build/docker
-        mkdir -p ~/docker_images
-        docker save -o ~/docker_images/test_docker.tar test-container
+        # register
+        docker build -t qemu-static ./auto-build/docker/qemu
+        docker run --rm --privileged qemu-static --reset -p yes
+        # rootfs
+        docker build -t test-container --build-arg ARCH="${RUN_ON_TARGET}" --build-arg BRANCH="${USE_OPENWRT_BRANCH}" ./auto-build/docker/rootfs
     - name: Test via Docker container
-      if: matrix.runtime_test && (steps.cache-docker.outputs.cache-hit == 'true' || steps.build-docker.outcome == 'success')
+      if: steps.build-docker.outcome == 'success'
       run: |
-        docker_id=$(docker run -d -p 127.0.0.1:28181:28181 --rm -v $GITHUB_WORKSPACE/${{ env.SAVED_NAME }}:/ci test-container)
-        for timeout in {1..600}; do
-        	sleep 1
+        docker_host="127.0.0.1:28181"
+        docker_id=$(docker run -d -p 127.0.0.1:28181:28181 --rm -v $GITHUB_WORKSPACE/${SAVED_NAME}:/ci test-container)
+        end_time=$(($(date +%s) + 200))
+        while [ "${end_time}" -gt "$(date +%s)" ]; do
         	if [ "$( docker container inspect -f '{{.State.Status}}' $docker_id )" = "running" ]; then
+        		[ -f "/tmp/openwrt-${docker_id}.log" ] || docker logs "${docker_id}" -t -f &> /tmp/openwrt-${docker_id}.log &
         		if [ -n "$(docker exec $docker_id netstat -nl | grep 28181)" ]; then
-        			sid=$(curl -is \
-        				--header 'Referer: http://127.0.0.1:28181' \
-        				--data 'username=admin&password=adminadmin' \
-        				http://127.0.0.1:28181/api/v2/auth/login \
+        			sid=$(curl -is -m 10 \
+        				-H "Referer: http://${docker_host}" \
+        				-d 'username=admin&password=adminadmin' \
+        				http://${docker_host}/api/v2/auth/login \
         				| grep '^set-cookie' | sed -n 's/\S\+ SID=\([^\x0-\x1f ",;\\\x7f]\+\); .*/\1/gp' 2>&1);
+        			[ -z "$sid" ] || break;
         		fi
 
-        		if [ -n "$sid" ] || [ "$timeout" -ge 600 ]; then
-        			printf "Startup delay: %ss\n" $timeout
-        			docker logs "${docker_id}" -t -f &> /tmp/openwrt-docker.log &
-        			break
-        		fi
+        		sleep 1
         	else
         		echo "::error ::The docker is not running!"
         		exit 1
         	fi
         done
+        printf "Startup delay: %ss\n" $((200 + $(date +%s) - ${end_time}))
+
+        if [ -n "$sid" ]; then
+        	echo "::group::qBittorrent info"
+        	echo "-------------------------------------------"
+        	curl -s -m 10 --cookie "SID=${sid}" http://${docker_host}/api/v2/app/version | xargs echo "qBittorrent:"
+        	curl -s -m 10 --cookie "SID=${sid}" http://${docker_host}/api/v2/app/webapiVersion | xargs echo "WebAPI:"
+        	echo "-------------------------------------------"
+        	curl -s -m 10 --cookie "SID=${sid}" http://${docker_host}/api/v2/app/buildInfo | jq -r 'to_entries[] | "\(.key): \(.value)"'
+        	curl -s -m 10 -X POST --cookie "SID=${sid}" http://${docker_host}/api/v2/app/shutdown
+        	echo "::endgroup::"
+        	end_time=$(($(date +%s) + 100))
+        	while [ "${end_time}" -gt "$(date +%s)" ]; do
+        		shotId=$(echo $sid | cut -c 12)
+        		[ -n "$(docker ps --format '{{.ID}}' | grep "${shortId}")" ] && sleep 1 || break;
+        	done
+        fi
+
+        if [ -f "/tmp/openwrt-${docker_id}.log" ]; then
+        	echo "::group::Docker logs"
+        	cat /tmp/openwrt-${docker_id}.log
+        	echo "::endgroup::"
+        fi
 
         [ -n "$sid" ] || { echo "Can't connect to qbittorrent!!!"; exit 1; }
-
-        echo "::group::qBittorrent info"
-        echo "-------------------------------------------"
-        curl -s http://127.0.0.1:28181/api/v2/app/version --cookie "SID=${sid}" | xargs echo "qBittorrent:"
-        curl -s http://127.0.0.1:28181/api/v2/app/webapiVersion --cookie "SID=${sid}" | xargs echo "WebAPI:"
-        echo "-------------------------------------------"
-        curl -s http://127.0.0.1:28181/api/v2/app/buildInfo --cookie "SID=${sid}" | jq -r 'to_entries[] | "\(.key): \(.value)"'
-        curl -s -X POST http://127.0.0.1:28181/api/v2/app/shutdown --cookie "SID=${sid}"
-        echo "::endgroup::"
-        for timeout in {1..600}; do
-        	shotId=$(echo $sid | cut -c 12)
-        	[ -n "$(docker ps --format '{{.ID}}' | grep "${shortId}")" ] && sleep 1 || break;
-        done
-        echo "::group::Docker logs"
-        if [ -f /tmp/openwrt-docker.log ]; then
-        	cat /tmp/openwrt-docker.log
-        fi
-        echo "::endgroup::"
   pre-release:
     if: needs.build-prep.outputs.draft == 'success'
     needs: [build-prep, build-matrix]

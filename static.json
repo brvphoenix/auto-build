@@ -19,7 +19,8 @@
 			"RUNTIME_TEST": true
 		},
 		"mips_24kc": {
-			"USE_TARGET": "malta-be"
+			"USE_TARGET": "malta-be",
+			"RUNTIME_TEST": true
 		},
 		"mipsel_24kc": {
 			"USE_TARGET": "ramips-mt7621"
