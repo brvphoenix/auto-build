@@ -122,7 +122,7 @@ jobs:
         sudo -E apt update
         sudo -E apt -y install build-essential curl flex gawk git jq libncurses5-dev \
         			libssl-dev python3 python3-distutils xz-utils zlib1g-dev
-        [ "$run_test" = "true" ] || sudo -E apt install skopeo
+        [ "$run_test" != "true" ] || sudo -E apt install skopeo
     - name: Initializing
       working-directory: ./auto-build
       run: |
