@@ -185,11 +185,11 @@ jobs:
       with:
         path: |
           build/dl/*
+          !build/dl/libtorrent-rasterbar-*.tar.gz
           !build/dl/qtbase-*.tar.xz
           !build/dl/qttools-*.tar.xz
         key: source-${{ matrix.link }}-${{ hashFiles(
              'build/package/self/**',
-             '!build/package/self/libtorrent-rasterbar/**',
              '!build/package/self/qtbase/**',
              '!build/package/self/qttools/**',
              'build/feeds/base/package/libs/zlib/**',
