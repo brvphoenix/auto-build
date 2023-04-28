@@ -17,4 +17,4 @@ echo "-------------------------------------------"
 [ -f "/lib/ld-musl-armhf.so.1" ] && ln -sf '/lib/ld-musl-armhf.so.1' '/lib/ld-musl-arm.so.1'
 
 mkdir -p /tmp/qbittorrent
-qbittorrent-nox --profile=/tmp/qbittorrent --webui-port=28181
+qbittorrent-nox --profile=/tmp/qbittorrent
