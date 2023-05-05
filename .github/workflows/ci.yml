@@ -142,7 +142,7 @@ jobs:
       with:
         path: |
           build/feeds/*
-        key: feeds-${{ matrix.link }}-${{ env.USE_FEEDS_VERSION }}
+        key: feeds-${{ matrix.link }}-${{ env.USE_FEEDS_REVISION }}
         restore-keys: |
           feeds-${{ matrix.link }}-
           feeds-
@@ -151,7 +151,7 @@ jobs:
       with:
         ref: ${{ env.USE_QBT_REFS }}
         repository: ${{ github.repository_owner }}/SomePackages
-        fetch-depth: 1
+        fetch-depth: 0
         token: ${{ secrets.SUPER_TOKEN }}
         path: qt_repo
     - name: Clone libtorrent
@@ -171,10 +171,10 @@ jobs:
         IGNORE_UPDATE_FEEDS: ${{ steps.cache-feeds.outputs.cache-hit }}
       working-directory: ./build
       run: |
-        bash ../auto-build/build_conf.sh "${{ matrix.qt }}" "${{ matrix.link }}"
+        bash ../auto-build/build_conf.sh "${{ matrix.qt }}" "${{ matrix.libtorrent }}" "${{ matrix.link }}"
     - if: env.USE_LIBT_HASH == ''
       run: |
-        echo USE_LIBT_HASH=$(sed -n 's/PKG_HASH:=\(\w\+\)/\1/gp' ./mirror/package/self/libtorrent-rasterbar/Makefile | head -c 10)" >> $GITHUB_ENV
+        echo USE_LIBT_HASH=$(sed -n 's/PKG_HASH:=\(\w\+\)/\1/gp' build/feeds/self/packages/libs/libtorrent-rasterbar/Makefile | head -c 10)" >> $GITHUB_ENV
     - name: Cache binary
       if: needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true'
       id: cache-bin
@@ -183,39 +183,23 @@ jobs:
         path: |
           ${{ env.SAVED_NAME }}.tar.xz
           ${{ env.SAVED_NAME }}.log.tar.xz
-        key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}-{5}', env.USE_RELEASE_NUMBER, matrix.link, matrix.arch, env.USE_SDK_VERSION, env.USE_LIBT_HASH,
-             hashFiles(
-             'build/package/self/**',
-             'build/feeds/base/package/libs/zlib/**',
-             'build/feeds/packages/libs/boost/**',
-             'build/feeds/base/package/libs/openssl/**',
-             'build/feeds/packages/libs/pcre2/**',
-             'auto-build/build_conf.sh'
-             )) }}
+        key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}', matrix.link, matrix.arch, env.USE_SDK_VERSION, env.USE_LIBT_HASH, env.USE_BINARY_HASH) }}
     - name: Cache downloaded source files (exclude Qt)
       if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
       uses: actions/cache@v3
       with:
         path: |
           build/dl/*
+          !build/dl/libtorrent-rasterbar-*.tar.xz
           !build/dl/qtbase-*.tar.xz
           !build/dl/qttools-*.tar.xz
-        key: source-${{ matrix.link }}-${{ hashFiles(
-             'build/package/self/**',
-             '!build/package/self/libtorrent-rasterbar/**',
-             '!build/package/self/qtbase/**',
-             '!build/package/self/qttools/**',
-             'build/feeds/base/package/libs/zlib/**',
-             'build/feeds/packages/libs/boost/**',
-             'build/feeds/base/package/libs/openssl/**',
-             'build/feeds/packages/libs/pcre2/**'
-             ) }}
+        key: source-${{ matrix.link }}-${{ env.USE_DL_HASH }}
         restore-keys: |
           source-${{ matrix.link }}-
           source-
     - if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
       run: |
-        echo "USE_QT_VER=$(sed -n '/PKG_BASE:=/{N;s/PKG_BASE:=\([0-9.]\+\)\s\+PKG_BUGFIX:=\(\w\+\)/\1.\2/gp}' ./mirror/package/self/qtbase/Makefile)" >> $GITHUB_ENV
+        echo "USE_QT_VER=$(sed -n '/PKG_BASE:=/{N;s/PKG_BASE:=\([0-9.]\+\)\s\+PKG_BUGFIX:=\(\w\+\)/\1.\2/gp}' build/feeds/self/packages/qt${{ matrix.qt }}/qtbase/Makefile)" >> $GITHUB_ENV
     - name: Cache Qt source
       if: env.USE_QT_VER != ''
       uses: actions/cache@v3

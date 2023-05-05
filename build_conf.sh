@@ -4,50 +4,43 @@ set -eET -o pipefail
 . ${GITHUB_WORKSPACE}/auto-build/build_default.sh
 
 qt_ver=$1
-link_type=$2
+libt_ver=$2
+link_type=$3
 
 # Restore the modified feeds sources
-for d in base packages luci routing telephony; do
-	if [ -d "feeds/$d" ]; then
-		cd feeds/$d;
-		git checkout .;
-		git clean -df;
-		cd ../..;
+rm -rf feeds/self{,.tmp,.index,.targetindex}
+for d in feeds/*; do
+	if [ -d "$d" ] && [ -d "$d/.git" ]; then
+		cd $d;
+		if $(git status >> /dev/null 2>&1); then
+			git checkout .;
+			git clean -df;
+		fi
+		cd -
 	fi
 done
 
 # use the github source
-sed -i 's/git.openwrt\.org\/openwrt\/openwrt/github.com\/openwrt\/openwrt/g' ./feeds.conf.default
-sed -i 's/git.openwrt\.org\/feed/github.com\/openwrt/g' ./feeds.conf.default
-sed -i 's/git.openwrt\.org\/project\/luci/github.com\/openwrt\/luci/g' ./feeds.conf.default
+sed \
+	-e 's,https://git\.openwrt\.org/feed/,https://github.com/openwrt/,' \
+	-e 's,https://git\.openwrt\.org/openwrt/,https://github.com/openwrt/,' \
+	-e 's,https://git\.openwrt\.org/project/,https://github.com/openwrt/,' \
+	feeds.conf.default | grep -v "^src-git-full \(routing\|telephony\) .*" > feeds.conf
 
-# Use the stable release snapshot feeds sources (should upgrade if update the release version).
-[ "${link_type}" = "dynamic" ] && sed -i "s/\(\.git\)\^\w\+/\1\;${USE_OPENWRT_BRANCH}/g" ./feeds.conf.default
+echo "src-link self ${GITHUB_WORKSPACE}/qt_repo" >> feeds.conf
 
+echo "::group::Update feeds"
 if [ "${IGNORE_UPDATE_FEEDS}" != "true" ]; then
 	# Sync with the source
-	echo "::group::Update feeds"
-	./scripts/feeds update -a
-	echo "::endgroup::"
+	./scripts/feeds update -f base packages luci self
+else
+	# Update custom feeds
+	./scripts/feeds update self
 fi
-
-# Use customized libtorrent-rasterbar
-rm -rf feeds/packages/libs/libtorrent-rasterbar
-
-# Use customized pkgs
-if [ "${link_type}" = "static" ]; then
-	# Sync openssl module
-	[ -n "$(ls include/openssl-*.mk 2>/dev/null)" ] || rsync -a feeds/base/include/openssl-*.mk include
-
-	rm -rf feeds/packages/libs/pcre2
-fi
-
-[ -d '../mirror' ] && rsync -a ../mirror/* ./ || exit 1
-
-# Update the indexs
-echo "::group::Install packages"
-make package/symlinks-install
 echo "::endgroup::"
+
+# Sync openssl module
+[ "${link_type}" = "dynamic" -o -n "$(ls include/openssl-*.mk 2>/dev/null)" ] || rsync -a feeds/base/include/openssl-*.mk include
 
 cat > .config <<EOF
 # CONFIG_ALL_KMODS is not set
@@ -68,14 +61,19 @@ if [ "${link_type}" = "static" ]; then
 		CONFIG_QBT_STATIC_LINK=y
 	EOF
 
-	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' feeds/packages/libs/pcre2/Makefile
-	sed -i 's/\(-DBUILD_STATIC_LIBS=\)OFF/\1ON/' feeds/packages/libs/pcre2/Makefile
-	sed -i '/(call BuildPackage,libpcre2)/i Package/libpcre2/install=true\nPackage/libpcre2-16/install=true\nPackage/libpcre2-32/install=true' feeds/packages/libs/pcre2/Makefile
-	sed -i 's/\(-DBUILD_SHARED_LIBS=\)ON/\1OFF/' package/self/libtorrent-rasterbar/Makefile
-	sed -i '/^define Package\/libtorrent-rasterbar$/{:a;N;/endef/!ba;s/\(endef\)/  BUILDONLY:=1\n\1/g}' package/self/libtorrent-rasterbar/Makefile
-
 	# Disable deprecated features if built statically
-	if [ "${libt_ver}" = "2_0" ]; then
-		sed -i 's/\(OPENSSL_OPTIONS:=.*\)$/\1 no-deprecated/' feeds/base/package/libs/openssl/Makefile
-	fi
+	[ "${libt_ver}" != "2_0" ] || \
+	cat >> .config <<-EOF
+		# CONFIG_OPENSSL_ENGINE is not set
+		# CONFIG_OPENSSL_WITH_DEPRECATED is not set
+	EOF
 fi
+
+echo "::group::Install packages"
+./scripts/feeds install -p self luci-app-qbittorrent
+echo "::endgroup::"
+
+find -L package/feeds/*/{boost,libtorrent-rasterbar,luci-app-qbittorrent,openssl,pcre2,qbittorrent,qtbase,qttools,zlib} .config \
+	-type f -print0 | sort -z | xargs -0 cat | sha256sum | awk '{print $1}' | xargs -i echo "USE_BINARY_HASH={}" >> $GITHUB_ENV
+cat package/feeds/*/{boost,openssl,pcre2,qbittorrent,zlib}/Makefile | grep '\(PKG_HASH\|PKG_MIRROR_HASH\)' | \
+	sha256sum | awk '{print $1}' | xargs -i echo "USE_DL_HASH={}" >> $GITHUB_ENV

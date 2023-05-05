@@ -134,3 +134,5 @@ if [ -d "build/dl" ]; then
 	rm -rf dl/libtorrent-rasterbar-*.tar.gz
 	cd ..
 fi
+
+rm -rf feeds/self{,tmp,.index,.targetindex}
