@@ -116,13 +116,10 @@ jobs:
         path: auto-build
         persist-credentials: false
     - name: Install Dependencies
-      env:
-          run_test: ${{ matrix.runtime_test }}
       run: |
         sudo apt-get update
         sudo apt-get -y install build-essential curl flex gawk git jq libncurses5-dev \
         			libssl-dev python3 python3-distutils xz-utils zlib1g-dev
-        [ "$run_test" != "true" ] || sudo apt-get -y install skopeo
     - name: Initializing
       working-directory: ./auto-build
       run: |
@@ -262,36 +259,6 @@ jobs:
         path: |
           ./${{ env.SAVED_NAME }}.log.tar.xz
         if-no-files-found: error
-    - name: Cache busybox
-      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
-      id: cache-busybox
-      uses: actions/cache@v3
-      with:
-        path: ~/docker_images/busybox.tar
-        key: docker-busybox-${{ env.USE_BUSYBOX_HASH }}
-    - if: steps.cache-busybox.outputs.cache-hit == 'true'
-      run: |
-        docker load -i ~/docker_images/busybox.tar
-    - if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true') && steps.cache-busybox.cache-hit != 'true'
-      run: |
-        docker pull busybox:latest
-        mkdir -p ~/docker_images
-        docker save -o ~/docker_images/busybox.tar busybox:latest
-    - name: Cache qemu-user-static
-      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
-      id: cache-qus
-      uses: actions/cache@v3
-      with:
-        path: ~/docker_images/qus.tar
-        key: docker-qus-${{ env.USE_DOCKER_HASH }}
-    - if: steps.cache-qus.outputs.cache-hit == 'true'
-      run: |
-        docker load -i ~/docker_images/qus.tar
-    - if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true') && steps.cache-qus.outputs.cache-hit != 'true'
-      run: |
-        docker pull multiarch/qemu-user-static:latest
-        mkdir -p ~/docker_images
-        docker save -o ~/docker_images/qus.tar multiarch/qemu-user-static:latest
     - name: Cache rootfs
       if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
       id: cache-rootfs
@@ -311,14 +278,38 @@ jobs:
       id: build-docker
       if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
       run: |
-        # register
-        docker build -t qemu-static ./auto-build/docker/qemu
-        docker run --rm --privileged qemu-static --reset -p yes
         # rootfs
         docker build -t test-container --build-arg ARCH="${RUN_ON_TARGET}" --build-arg BRANCH="${USE_OPENWRT_BRANCH}" ./auto-build/docker/rootfs
     - name: Test via Docker container
       if: steps.build-docker.outcome == 'success'
       run: |
+        echo "::group::Register QEMU"
+        [ -n "$(command -v update-binfmts)" ] || sudo apt-get -y install binfmt-support
+
+        ## Update binfmts using ubuntu's binfmt files.
+        #sudo update-binfmts --import
+
+        mkdir -p qemu qemu/qus qemu/tmp
+        cd qemu
+
+        qus_ver=$(curl -fskLZ --compressed --fail-early \
+        	https://metadata.ftp-master.debian.org/changelogs/main/q/qemu/experimental_changelog 2>&1 \
+        	| head -n 1 | sed -n 's,qemu (\([0-9]:\)\?\(\S\+\)).*,\2,gp')
+        curl -fkLOZ --compressed --connect-timeout 10 --retry 5 http://ftp.debian.org/debian/pool/main/q/qemu/qemu-user-static_${qus_ver}_amd64.deb
+        dpkg -x "qemu-user-static_${qus_ver}_amd64.deb" "$(pwd)/qus"
+
+        # Register qemu by official binfmt.
+        exportdir=$(pwd)/tmp
+        binfmt_ver=$(echo ${qus_ver} | sed -n 's,\(\([0-9]\+\.\)\+[0-9]\+\).*,\1,gp')
+        curl -fkLOZ --compressed --connect-timeout 10 --retry 5 https://raw.githubusercontent.com/qemu/qemu/stable-${binfmt_ver}/scripts/qemu-binfmt-conf.sh
+        chmod +x qemu-binfmt-conf.sh
+        # Modify the package name to avoid potential conflits. For example, it need the modify the package name
+        # to 'qemu-user-static' if use package 'qemu-user-static'.
+        sed -i 's/^package qemu-\$cpu$/package qemu-test-static/g' qemu-binfmt-conf.sh
+        ./qemu-binfmt-conf.sh --qemu-suffix "-static" --qemu-path "$(pwd)/qus/usr/bin" --debian --exportdir "${exportdir}" --persistent yes
+        sudo update-binfmts --importdir ${exportdir} --import
+        echo "::endgroup::"
+
         host_port=28181
         req_url=http://127.0.0.1:${host_port}
         webui_port=8080
