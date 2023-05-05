@@ -43,7 +43,7 @@ echo USE_QBT_REFS=$(jq -r '.qbittorrent.QT_VERSION?."'${qt_ver}'"' ${JSON_FILE})
 LIBT_REFS=$(jq -r '.qbittorrent.LIBTORRENT_VERSION?."'${libt_ver}'" // empty' ${JSON_FILE})
 if [ -z "${LIBT_REFS}" -a -d "../auto-build/rsync/common/package/self/libtorrent-rasterbar_${libt_ver}" ]; then
 	echo "USE_LIBT_LOCAL=true" >> $GITHUB_ENV
-	echo USE_LIBT_HASH=$(git ls-remote ${GITHUB_SERVER_URL}/arvidn/libtorrent refs/heads/RC_${libt_ver} | head -c 10) >> $GITHUB_ENV
+	echo USE_LIBT_HASH=$(git ls-remote -h ${GITHUB_SERVER_URL}/arvidn/libtorrent refs/heads/RC_${libt_ver} | head -c 10) >> $GITHUB_ENV
 else
 	echo "USE_LIBT_REFS=${LIBT_REFS}" >> $GITHUB_ENV
 fi
@@ -53,10 +53,10 @@ USE_OPENWRT_BRANCH=openwrt-22.03
 echo "USE_OPENWRT_BRANCH=${USE_OPENWRT_BRANCH}" >> $GITHUB_ENV
 
 # curl SDK info
-http_code=$(curl -fksILZ -o /dev/null -w %{http_code} --compressed ${USE_SOURCE_URL}/version.buildinfo)
+http_code=$(curl -fskILZ -o /dev/null -w %{http_code} --compressed ${USE_SOURCE_URL}/version.buildinfo)
 [ "http_code" != "404" ] && \
-	sdk_ver="$(curl -ksLZ --compressed ${USE_SOURCE_URL}/version.buildinfo)" || \
-	sdk_ver="$(echo ${GITHUB_RUN_ID})"
+	sdk_ver="$(curl -skLZ --compressed ${USE_SOURCE_URL}/version.buildinfo)" || \
+	sdk_ver="${GITHUB_RUN_ID}"
 
 echo "USE_SDK_VERSION=${sdk_ver}" >> $GITHUB_ENV
 
@@ -82,13 +82,13 @@ if [ "${RUNTIME_TEST}" = "true" ]; then
 	skopeo inspect --format "{{.Digest}}" docker://docker.io/busybox | cut -d : -f 2 | xargs -i echo "USE_BUSYBOX_HASH={}" >> $GITHUB_ENV || exit 1
 
 	# multiarch/qemu-user-static
-	token=$(curl -s "https://auth.docker.io/token?scope=repository:multiarch/qemu-user-static:pull&service=registry.docker.io" | jq -r '.token')
+	token=$(curl -skL "https://auth.docker.io/token?scope=repository:multiarch/qemu-user-static:pull&service=registry.docker.io" | jq -r '.token')
 	curl -fskILZ -H "Accept: application/vnd.dockser.distribution.manifest.v2+json" \
 		-H "Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/multiarch/qemu-user-static/manifests/latest" \
 		| sed -n 's/docker-content-digest:\s\+sha256:\(\w\+\)/\1/gp' | xargs -i echo "USE_DOCKER_HASH={}" >> $GITHUB_ENV || exit 1
 
 	# openwrtorg/rootfs
-	token=$(curl -s "https://auth.docker.io/token?scope=repository:openwrtorg/rootfs:pull&service=registry.docker.io" | jq -r '.token')
+	token=$(curl -skL "https://auth.docker.io/token?scope=repository:openwrtorg/rootfs:pull&service=registry.docker.io" | jq -r '.token')
 	curl -fskILZ -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
 		-H "Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/openwrtorg/rootfs/manifests/${RUN_ON_TARGET:-${USE_TARGET}}-${USE_OPENWRT_BRANCH}" \
 		| sed -n 's/docker-content-digest:\s\+sha256:\(\w\+\)/\1/gp' | xargs -i echo "USE_ROOTFS_HASH={}" >> $GITHUB_ENV || exit 1

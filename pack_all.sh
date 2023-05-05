@@ -123,9 +123,9 @@ echo "hash=$(sha256sum ${SAVED_NAME}.tar.xz | head -c 12)" >> $GITHUB_OUTPUT
 ## openssl enc -d -aes-256-ctr -pbkdf2 -pass pass:123456 -in ${SAVED_NAME}-keychain.bin | tar -xz
 
 # Clean up the obsolete packages
-if [ ! -d "build/dl" ]; then
+if [ -d "build/dl" ]; then
 	cd build
-	./scripts/dl_cleanup.py 2>&1 >/dev/null
+	./scripts/dl_cleanup.py dl 2>/dev/null
 	rm -rf dl/libtorrent-rasterbar-*.tar.gz
 	cd ..
 fi

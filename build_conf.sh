@@ -37,7 +37,7 @@ rm -rf feeds/packages/libs/libtorrent-rasterbar
 # Use customized pkgs
 if [ "${link_type}" = "static" ]; then
 	# Sync openssl module
-	[ -z "$(ls include/openssl1-*.mk &>/dev/null)" ] || rsync -a feeds/base/include/openssl-*.mk include
+	[ -n "$(ls include/openssl-*.mk 2>/dev/null)" ] || rsync -a feeds/base/include/openssl-*.mk include
 
 	rm -rf feeds/packages/libs/pcre2
 fi

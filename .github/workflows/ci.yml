@@ -50,7 +50,7 @@ on:
         - all
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-format("{0}-{1}-{2}-{3}", github.event.inputs.type, github.event.inputs.arch, github.event.inputs,qt, github.event.inputs.lt)
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ format('{0}-{1}-{2}-{3}', github.event.inputs.type, github.event.inputs.arch, github.event.inputs.qt, github.event.inputs.lt) }}
   cancel-in-progress: true
 
 jobs:
@@ -65,8 +65,8 @@ jobs:
     - name: Install Dependencies
       run: |
         [ -n "$(command -v jq)" ] || {
-        	sudo -E apt update
-        	sudo -E apt -y install jq
+        	sudo apt-get update
+        	sudo apt-get -y install jq
         }
     - name: Format build matrix
       id: set-matrix
@@ -119,10 +119,10 @@ jobs:
       env:
           run_test: ${{ matrix.runtime_test }}
       run: |
-        sudo -E apt update
-        sudo -E apt -y install build-essential curl flex gawk git jq libncurses5-dev \
+        sudo apt-get update
+        sudo apt-get -y install build-essential curl flex gawk git jq libncurses5-dev \
         			libssl-dev python3 python3-distutils xz-utils zlib1g-dev
-        [ "$run_test" = "true" ] || sudo -E apt install skopeo
+        [ "$run_test" != "true" ] || sudo apt-get -y install skopeo
     - name: Initializing
       working-directory: ./auto-build
       run: |
@@ -134,7 +134,7 @@ jobs:
         path: ./${{ env.USE_SDK_FILE }}
         key: ${{ matrix.link }}-${{ matrix.arch }}-${{ env.USE_SDK_VERSION }}
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
-      run: curl -kLOZ --compressed "${USE_SOURCE_URL}/${USE_SDK_FILE}"
+      run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_SOURCE_URL}/${USE_SDK_FILE}"
     - run: |
         [ "$(sha256sum ${USE_SDK_FILE} | cut -d ' ' -f1)" = "${USE_SDK_SHA256SUM}" ] || exit 1;
         mkdir -p build
@@ -149,7 +149,7 @@ jobs:
         restore-keys: |
           feeds-${{ matrix.link }}-
           feeds-
-    - name: Clone qbt
+    - name: Clone qbittorrent
       uses: actions/checkout@v3
       with:
         ref: ${{ env.USE_QBT_REFS }}
@@ -157,7 +157,7 @@ jobs:
         fetch-depth: 1
         token: ${{ secrets.SUPER_TOKEN }}
         path: qt_repo
-    - name: Clone libt
+    - name: Clone libtorrent
       if: env.USE_LIBT_LOCAL != 'true'
       uses: actions/checkout@v3
       with:
@@ -247,14 +247,14 @@ jobs:
         [ -n "$(find ${SAVED_NAME} -type f -iname *qbittorrent*)" ] || exit 1
         cd auto-build
         hub release edit "${GITHUB_REF_NAME}" -a "../${SAVED_NAME}.tar.xz" -m ""
-    - name: Upload the Pkgs
+    - name: Upload Pkgs
       if: always() && steps.upload-release.outcome != 'success' && steps.pack-all.outputs.pkgs == 'true'
       uses: actions/upload-artifact@v3
       with:
         name: ${{ env.SAVED_NAME }}-pkgs-${{ steps.pack-all.outputs.hash }}
         path: ./${{ env.SAVED_NAME }}.tar.xz
         if-no-files-found: error
-    - name: Upload the Logs
+    - name: Upload Logs
       if: always() && steps.pack-all.outputs.logs == 'true'
       uses: actions/upload-artifact@v3
       with:
