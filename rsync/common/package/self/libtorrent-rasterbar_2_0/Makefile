@@ -18,6 +18,7 @@ PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:libtorrent:libtorrent
 
+PKG_BUILD_DEPENDS:=boost
 PKG_BUILD_PARALLEL:=1
 PKG_USE_MIPS16:=0
 
@@ -32,7 +33,7 @@ define Package/libtorrent-rasterbar
   CATEGORY:=Libraries
   TITLE:=C++ bittorrent library by Rasterbar Software
   URL:=https://www.libtorrent.org
-  DEPENDS:=+boost +boost-system +libatomic +libgcc +libopenssl +libstdcpp
+  DEPENDS:=+@PACKAGE_boost +@PACKAGE_boost-system +libatomic +libgcc +libopenssl +libstdcpp
   ABI_VERSION:=2.0
 endef
 

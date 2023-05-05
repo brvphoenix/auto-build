@@ -16,6 +16,7 @@ fi
 
 target_arch=$1
 link_type=$2
+libt_ver=$3
 
 # Compress the log files
 [ -d "build/logs" ] && { \
@@ -32,12 +33,20 @@ mkdir -p ${PKGS_DIR} ${KEY_DIR}
 if [ "${link_type}" = "static" ]; then
 	[ ! -d "build/bin/packages" ] || find build/bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${PKGS_DIR} \;
 else
-	[ ! -d "build/bin/packages" ] || find build/bin/packages -type f -iname *.ipk -exec cp -f {} ${PKGS_DIR} \;
-
-	[ ! -d "build/bin/targets" ] || find build/bin/targets -type f \( \
-		-iname libstdcpp* -or \
-		-iname libatomic* \
-	\) -exec cp -f {} ${PKGS_DIR} \;
+	[ "$libt_ver" = "1_2" ] && {
+		[ ! -d "build/bin/packages" ] || find build/bin/packages -type f -iname *.ipk -exec cp -f {} ${PKGS_DIR} \;
+		[ ! -d "build/bin/targets" ] || find build/bin/targets -type f \( \
+			-iname libstdcpp*.ipk -o \
+			-iname libatomic*.ipk -o \
+			-iname librt*.ipk \
+		\) -exec cp -f {} ${PKGS_DIR} \;
+	} || {
+		[ ! -d "build/bin/packages" ] || find build/bin/packages -type f -iname *.ipk ! -iname boost_*.ipk ! -iname boost-*.ipk -exec cp -f {} ${PKGS_DIR} \;
+		[ ! -d "build/bin/targets" ] || find build/bin/targets -type f \( \
+			-iname libstdcpp*.ipk -o \
+			-iname libatomic*.ipk \
+		\) -exec cp -f {} ${PKGS_DIR} \;
+	}
 fi
 
 # Add to repository

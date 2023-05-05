@@ -237,7 +237,7 @@ jobs:
       env:
         CACHE_HIT: ${{ steps.cache-bin.outputs.cache-hit }}
       run: |
-        bash ./auto-build/pack_all.sh "${{ matrix.arch }}" "${{ matrix.link }}"
+        bash ./auto-build/pack_all.sh "${{ matrix.arch }}" "${{ matrix.link }}" "${{ matrix.libtorrent }}"
     - name: Upload Release Asset
       id: upload-release
       if: needs.build-prep.outputs.draft == 'success'
