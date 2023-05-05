@@ -1,6 +1,5 @@
-ARG ARCH=x86_64
-ARG BRANCH=snapshot
-FROM openwrtorg/rootfs:$ARCH-$BRANCH
+ARG TAG=x86-64
+FROM ghcr.io/openwrt/rootfs:$TAG
 
 EXPOSE 8080
 

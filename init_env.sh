@@ -32,7 +32,6 @@ USE_SDK_FILE=$(grep -io "${sdkfile}" sha256sums)
 USE_SDK_SHA256SUM=$(grep -i "${sdkfile}" sha256sums | cut -d' ' -f1)
 [ -n "${USE_SDK_FILE}" ] || exit 1;
 
-echo "RUN_ON_TARGET=${RUN_ON_TARGET:-${USE_TARGET}}" >> $GITHUB_ENV
 echo "USE_SDK_FILE=${USE_SDK_FILE}" >> $GITHUB_ENV
 echo "USE_SDK_SHA256SUM=${USE_SDK_SHA256SUM}" >> $GITHUB_ENV
 echo "USE_SOURCE_URL=${USE_SOURCE_URL}" >> $GITHUB_ENV
@@ -49,8 +48,9 @@ else
 fi
 
 # Openwrt tag for docker image
-USE_OPENWRT_BRANCH=openwrt-22.03
+USE_OPENWRT_BRANCH=openwrt-$(jq -r '.openwrt.USE_VERSION' dynamic.json | grep -o '[0-9]\+\.[0-9]\+')
 echo "USE_OPENWRT_BRANCH=${USE_OPENWRT_BRANCH}" >> $GITHUB_ENV
+echo "USE_DOCKER_ROOTFS_TAG=${RUN_ON_TARGET:-${USE_TARGET}}-${USE_OPENWRT_BRANCH}" >> $GITHUB_ENV
 
 # curl SDK info
 http_code=$(curl -fskILZ -o /dev/null -w %{http_code} --compressed ${USE_SOURCE_URL}/version.buildinfo)
@@ -78,10 +78,10 @@ echo "USE_RELEASE_NUMBER=${USE_RELEASE_NUMBER:-1}" >> $GITHUB_ENV
 
 # Get the docker image hash
 if [ "${RUNTIME_TEST}" = "true" ]; then
-	# openwrtorg/rootfs
-	token=$(curl -skL "https://auth.docker.io/token?scope=repository:openwrtorg/rootfs:pull&service=registry.docker.io" | jq -r '.token')
+	# openwrt/rootfs
+	token=$(curl -skL "https://ghcr.io/token?scope=repository:openwrt/rootfs:pull&service=ghcr.io" | jq -r '.token')
 	curl -fskILZ -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-		-H "Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/openwrtorg/rootfs/manifests/${RUN_ON_TARGET:-${USE_TARGET}}-${USE_OPENWRT_BRANCH}" \
+		-H "Authorization: Bearer ${token}" "https://ghcr.io/v2/openwrt/rootfs/manifests/${RUN_ON_TARGET:-${USE_TARGET}}-${USE_OPENWRT_BRANCH}" \
 		| sed -n 's/docker-content-digest:\s\+sha256:\(\w\+\)/\1/gp' | xargs -i echo "USE_ROOTFS_HASH={}" >> $GITHUB_ENV || exit 1
 fi
 

@@ -255,21 +255,21 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/docker_images/openwrt_rootfs.tar
-        key: docker-${{ env.RUN_ON_TARGET }}-${{ env.USE_OPENWRT_BRANCH }}-${{ env.USE_ROOTFS_HASH }}
+        key: docker-${{ env.USE_DOCKER_ROOTFS_TAG }}-${{ env.USE_ROOTFS_HASH }}
     - if: steps.cache-rootfs.outputs.cache-hit == 'true'
       run: |
         docker load -i ~/docker_images/openwrt_rootfs.tar
     - if: matrix.runtime_test && steps.cache-rootfs.outputs.cache-hit != 'true'
       run: |
-        docker pull openwrtorg/rootfs:${RUN_ON_TARGET}-${USE_OPENWRT_BRANCH}
+        docker pull ghcr.io/openwrt/rootfs:${USE_DOCKER_ROOTFS_TAG}
         mkdir -p ~/docker_images
-        docker save -o ~/docker_images/openwrt_rootfs.tar openwrtorg/rootfs:${RUN_ON_TARGET}-${USE_OPENWRT_BRANCH}
+        docker save -o ~/docker_images/openwrt_rootfs.tar ghcr.io/openwrt/rootfs:${USE_DOCKER_ROOTFS_TAG}
     - name: Build Docker container
       id: build-docker
       if: matrix.runtime_test
       run: |
         # rootfs
-        docker build -t test-container --build-arg ARCH="${RUN_ON_TARGET}" --build-arg BRANCH="${USE_OPENWRT_BRANCH}" ./auto-build/docker/rootfs
+        docker build -t test-container --build-arg TAG="${USE_DOCKER_ROOTFS_TAG}" ./auto-build/docker/rootfs
     - name: Register QEMU
       if: matrix.runtime_test
       run: |
