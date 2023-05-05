@@ -163,7 +163,7 @@ jobs:
         fetch-depth: 1
         token: ${{ secrets.SUPER_TOKEN }}
         path: libt_repo
-    - name: Prepare required packages
+    - name: Prepare modified packages
       run: |
         bash ./auto-build/build_pre.sh "${{ matrix.qt }}" "${{ matrix.libtorrent }}" "${{ matrix.link }}"
     - name: Prepare building
@@ -175,9 +175,25 @@ jobs:
     - if: env.USE_LIBT_HASH == ''
       run: |
         echo USE_LIBT_HASH=$(sed -n 's/PKG_HASH:=\(\w\+\)/\1/gp' ./mirror/package/self/libtorrent-rasterbar/Makefile | head -c 10)" >> $GITHUB_ENV
-    - run: |
-        echo "USE_QT_VER=$(sed -n '/PKG_BASE:=/{N;s/PKG_BASE:=\([0-9.]\+\)\s\+PKG_BUGFIX:=\(\w\+\)/\1.\2/gp}' ./mirror/package/self/qtbase/Makefile)" >> $GITHUB_ENV
+    - name: Cache binary
+      if: needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true'
+      id: cache-bin
+      uses: actions/cache@v3
+      with:
+        path: |
+          ${{ env.SAVED_NAME }}.tar.xz
+          ${{ env.SAVED_NAME }}.log.tar.xz
+        key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}-{5}', env.USE_RELEASE_NUMBER, matrix.link, matrix.arch, env.USE_SDK_VERSION, env.USE_LIBT_HASH,
+             hashFiles(
+             'build/package/self/**',
+             'build/feeds/base/package/libs/zlib/**',
+             'build/feeds/packages/libs/boost/**',
+             'build/feeds/base/package/libs/openssl/**',
+             'build/feeds/packages/libs/pcre2/**',
+             'auto-build/build_conf.sh'
+             )) }}
     - name: Cache downloaded source files (exclude Qt)
+      if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
       uses: actions/cache@v3
       with:
         path: |
@@ -197,32 +213,18 @@ jobs:
         restore-keys: |
           source-${{ matrix.link }}-
           source-
+    - if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
+      run: |
+        echo "USE_QT_VER=$(sed -n '/PKG_BASE:=/{N;s/PKG_BASE:=\([0-9.]\+\)\s\+PKG_BUGFIX:=\(\w\+\)/\1.\2/gp}' ./mirror/package/self/qtbase/Makefile)" >> $GITHUB_ENV
     - name: Cache Qt source
+      if: env.USE_QT_VER != ''
       uses: actions/cache@v3
       with:
         path: |
           build/dl/qtbase-*-src-${{ env.USE_QT_VER }}.tar.xz
           build/dl/qttools-*-src-${{ env.USE_QT_VER }}.tar.xz
         key: qt-${{ env.USE_QT_VER }}
-    - name: Cache binary
-      if: needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true'
-      id: cache-bin
-      uses: actions/cache@v3
-      with:
-        path: |
-          ${{ env.SAVED_NAME }}.tar.xz
-          ${{ env.SAVED_NAME }}.log.tar.xz
-        key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}-{5}', env.USE_RELEASE_NUMBER, matrix.link, matrix.arch, env.USE_SDK_VERSION, env.USE_LIBT_HASH, 
-             hashFiles(
-             'build/package/self/**',
-             'build/feeds/base/package/libs/zlib/**',
-             'build/feeds/packages/libs/boost/**',
-             'build/feeds/base/package/libs/openssl/**',
-             'build/feeds/packages/libs/pcre2/**',
-             'auto-build/build_conf.sh'
-             )) }}
     - name: Build the Binary Files
-      id: build-pkgs
       if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
       working-directory: ./build
       run: |
@@ -230,37 +232,25 @@ jobs:
         make package/luci-app-qbittorrent/compile V=sc -j$(($(nproc)+1)) BUILD_LOG=1
     - name: Pack all the flies
       id: pack-all
-      if: always()
+      if: success() || failure()
       env:
         CACHE_HIT: ${{ steps.cache-bin.outputs.cache-hit }}
       run: |
         bash ./auto-build/pack_all.sh "${{ matrix.arch }}" "${{ matrix.link }}" "${{ matrix.libtorrent }}"
-    - name: Upload Release Asset
-      id: upload-release
-      if: needs.build-prep.outputs.draft == 'success'
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        [ -n "$(find ${SAVED_NAME} -type f -iname *qbittorrent*)" ] || exit 1
-        cd auto-build
-        hub release edit "${GITHUB_REF_NAME}" -a "../${SAVED_NAME}.tar.xz" -m ""
     - name: Upload Pkgs
-      if: always() && steps.upload-release.outcome != 'success' && steps.pack-all.outputs.pkgs == 'true'
+      if: needs.build-prep.outputs.draft != 'true' && steps.pack-all.outputs.pkgs == 'true'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ env.SAVED_NAME }}-pkgs-${{ steps.pack-all.outputs.hash }}
+        name: ${{ env.SAVED_NAME }}-pkgs_${{ github.run_attempt }}
         path: ./${{ env.SAVED_NAME }}.tar.xz
-        if-no-files-found: error
     - name: Upload Logs
-      if: always() && steps.pack-all.outputs.logs == 'true'
+      if: (success() || failure()) && steps.pack-all.outputs.logs == 'true'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ env.SAVED_NAME }}-log-${{ steps.pack-all.outputs.hash }}
-        path: |
-          ./${{ env.SAVED_NAME }}.log.tar.xz
-        if-no-files-found: error
+        name: ${{ env.SAVED_NAME }}-log_${{ github.run_attempt }}
+        path: ./${{ env.SAVED_NAME }}.log.tar.xz
     - name: Cache rootfs
-      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
+      if: matrix.runtime_test
       id: cache-rootfs
       uses: actions/cache@v3
       with:
@@ -269,21 +259,20 @@ jobs:
     - if: steps.cache-rootfs.outputs.cache-hit == 'true'
       run: |
         docker load -i ~/docker_images/openwrt_rootfs.tar
-    - if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true') && steps.cache-rootfs.outputs.cache-hit != 'true'
+    - if: matrix.runtime_test && steps.cache-rootfs.outputs.cache-hit != 'true'
       run: |
         docker pull openwrtorg/rootfs:${RUN_ON_TARGET}-${USE_OPENWRT_BRANCH}
         mkdir -p ~/docker_images
         docker save -o ~/docker_images/openwrt_rootfs.tar openwrtorg/rootfs:${RUN_ON_TARGET}-${USE_OPENWRT_BRANCH}
     - name: Build Docker container
       id: build-docker
-      if: matrix.runtime_test && (steps.build-pkgs.outcome == 'success' || steps.cache-bin.outputs.cache-hit == 'true')
+      if: matrix.runtime_test
       run: |
         # rootfs
         docker build -t test-container --build-arg ARCH="${RUN_ON_TARGET}" --build-arg BRANCH="${USE_OPENWRT_BRANCH}" ./auto-build/docker/rootfs
-    - name: Test via Docker container
-      if: steps.build-docker.outcome == 'success'
+    - name: Register QEMU
+      if: matrix.runtime_test
       run: |
-        echo "::group::Register QEMU"
         [ -n "$(command -v update-binfmts)" ] || sudo apt-get -y install binfmt-support
 
         ## Update binfmts using ubuntu's binfmt files.
@@ -308,8 +297,9 @@ jobs:
         sed -i 's/^package qemu-\$cpu$/package qemu-test-static/g' qemu-binfmt-conf.sh
         ./qemu-binfmt-conf.sh --qemu-suffix "-static" --qemu-path "$(pwd)/qus/usr/bin" --debian --exportdir "${exportdir}" --persistent yes
         sudo update-binfmts --importdir ${exportdir} --import
-        echo "::endgroup::"
-
+    - name: Test via Docker container
+      if: matrix.runtime_test
+      run: |
         host_port=28181
         req_url=http://127.0.0.1:${host_port}
         webui_port=8080
@@ -371,6 +361,15 @@ jobs:
         docker rm -f "${docker_id}"
 
         exit ${err_code:-1}
+    - name: Upload Release Asset
+      id: upload-release
+      if: needs.build-prep.outputs.draft == 'success' && steps.pack-all.outputs.pkgs == 'true'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        [ -n "$(find ${SAVED_NAME} -type f -iname *qbittorrent*)" ] || exit 1
+        cd auto-build
+        hub release edit "${GITHUB_REF_NAME}" -a "../${SAVED_NAME}.tar.xz" -m ""
   pre-release:
     if: needs.build-prep.outputs.draft == 'success'
     needs: [build-prep, build-matrix]

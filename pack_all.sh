@@ -6,7 +6,6 @@ set -eET -o pipefail
 if [ "${CACHE_HIT}" = "true" ]; then
 	[ -f "${SAVED_NAME}.tar.xz" ] && {
 		tar -xJf ${SAVED_NAME}.tar.xz;
-		echo "hash=$(sha256sum ${SAVED_NAME}.tar.xz | head -c 12)" >> $GITHUB_OUTPUT;
 		echo "pkgs=true" >> $GITHUB_OUTPUT
 	} || echo "Not exist: ${SAVED_NAME}.tar.xz"
 
@@ -122,9 +121,6 @@ sed -i "s/\$fingerprint/${fingerprint}/g" ${SAVED_NAME}/install.sh
 # Compress the pkgs
 tar -cJf ${SAVED_NAME}.tar.xz ${SAVED_NAME}
 echo "pkgs=true" >> $GITHUB_OUTPUT
-
-# hashFiles has different value with sha256sum
-echo "hash=$(sha256sum ${SAVED_NAME}.tar.xz | head -c 12)" >> $GITHUB_OUTPUT
 
 ## Compress and encrypt the keychain
 # tar -czvf - ${BUILD_KEY}.pub ${BUILD_KEY} | \
