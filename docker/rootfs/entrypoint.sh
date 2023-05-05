@@ -1,8 +1,7 @@
 #!/bin/sh
 
 mkdir -p /var/lock
-chmod +x /ci/install.sh
-/ci/install.sh install
+sh /ci/install.sh install
 
 cat /etc/banner
 
@@ -17,4 +16,4 @@ echo "-------------------------------------------"
 [ -f "/lib/ld-musl-armhf.so.1" ] && ln -sf '/lib/ld-musl-armhf.so.1' '/lib/ld-musl-arm.so.1'
 
 mkdir -p /tmp/qbittorrent
-qbittorrent-nox --profile=/tmp/qbittorrent --webui-port=28181
+qbittorrent-nox --profile=/tmp/qbittorrent
