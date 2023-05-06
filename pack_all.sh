@@ -3,82 +3,84 @@
 set -eET -o pipefail
 . ${GITHUB_WORKSPACE}/auto-build/build_default.sh
 
-if [ "${CACHE_HIT}" = "true" ]; then
-	[ -f "${SAVED_NAME}.tar.xz" ] && {
-		tar -xJf ${SAVED_NAME}.tar.xz;
-		echo "pkgs=true" >> $GITHUB_OUTPUT
-	} || echo "Not exist: ${SAVED_NAME}.tar.xz"
-
-	[ -f "${SAVED_NAME}.log.tar.xz" ] && echo "logs=true" >> $GITHUB_OUTPUT || echo "Not exist: ${SAVED_NAME}.log.tar.xz"
-	exit 0
-fi
+[ -d build ] && cd build || { echo "Not exist 'build' dir"; exit 0; }
 
 target_arch=$1
 link_type=$2
 libt_ver=$3
 
-# Compress the log files
-[ -d "build/logs" ] && { \
-	cd build && XZ_OPT=-9 tar -cJvf ../${SAVED_NAME}.log.tar.xz logs
-	cd ..
-	echo "logs=true" >> $GITHUB_OUTPUT
-}
-
 # The save path of the packages
-PKGS_DIR=${SAVED_NAME}/pkgs
-KEY_DIR=${SAVED_NAME}/key
-mkdir -p ${PKGS_DIR} ${KEY_DIR}
+[ -n "${SAVED_NAME}" ] || exit 125
+SAVE_ROOT_DIR=../${SAVED_NAME}
+PKGS_DIR=${SAVE_ROOT_DIR}/pkgs
+KEY_DIR=${SAVE_ROOT_DIR}/key
 
-if [ "${link_type}" = "static" ]; then
-	[ ! -d "build/bin/packages" ] || find build/bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${PKGS_DIR} \;
+if [ "${CACHE_HIT}" = "true" ]; then
+	fingerprint=$(ls -t ${KEY_DIR} | head -n 1)
 else
-	[ "$libt_ver" = "1_2" ] && {
-		[ ! -d "build/bin/packages" ] || find build/bin/packages -type f -iname *.ipk -exec cp -f {} ${PKGS_DIR} \;
-		[ ! -d "build/bin/targets" ] || find build/bin/targets -type f \( \
-			-iname libstdcpp*.ipk -o \
-			-iname libatomic*.ipk -o \
-			-iname librt*.ipk \
-		\) -exec cp -f {} ${PKGS_DIR} \;
-	} || {
-		[ ! -d "build/bin/packages" ] || find build/bin/packages -type f -iname *.ipk ! -iname boost_*.ipk ! -iname boost-*.ipk -exec cp -f {} ${PKGS_DIR} \;
-		[ ! -d "build/bin/targets" ] || find build/bin/targets -type f \( \
-			-iname libstdcpp*.ipk -o \
-			-iname libatomic*.ipk \
-		\) -exec cp -f {} ${PKGS_DIR} \;
-	}
+	mkdir -p ${SAVE_ROOT_DIR} ${PKGS_DIR} ${KEY_DIR}
+	if [ "${link_type}" = "static" ]; then
+		[ ! -d "./bin/packages" ] || find ./bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${PKGS_DIR} \;
+	else
+		[ "$libt_ver" = "1_2" ] && {
+			[ ! -d "./bin/packages" ] || find ./bin/packages -type f -iname *.ipk -exec cp -f {} ${PKGS_DIR} \;
+			[ ! -d "./bin/targets" ] || find ./bin/targets -type f \( \
+				-iname libstdcpp*.ipk -o \
+				-iname libatomic*.ipk -o \
+				-iname librt*.ipk \
+			\) -exec cp -f {} ${PKGS_DIR} \;
+		} || {
+			[ ! -d "./bin/packages" ] || find ./bin/packages -type f -iname *.ipk ! -iname boost_*.ipk ! -iname boost-*.ipk -exec cp -f {} ${PKGS_DIR} \;
+			[ ! -d "./bin/targets" ] || find ./bin/targets -type f \( \
+				-iname libstdcpp*.ipk -o \
+				-iname libatomic*.ipk \
+			\) -exec cp -f {} ${PKGS_DIR} \;
+		}
+	fi
+
+	STAGING_DIR_HOST=$(pwd)/staging_dir/host
+	SCRIPT_DIR=$(pwd)/scripts
+	BUILD_KEY=qbt-key
+	export MKHASH=${STAGING_DIR_HOST}/bin/mkhash
+	export PATH=${STAGING_DIR_HOST}/bin:$PATH
+
+	# Index the packages
+	cd ${PKGS_DIR}
+	${SCRIPT_DIR}/ipkg-make-index.sh . 2>&1 > Packages.manifest
+	grep -vE '^(Maintainer|LicenseFiles|Source|SourceName|Require|SourceDateEpoch)' Packages.manifest > Packages
+	case "$$(((64 + $$(stat -L -c%s Packages)) % 128))" in
+	110|111)
+		echo "::warning:: Applying padding in ${PKGS_DIR}/Packages to workaround usign SHA-512 bug!"
+		{ echo ""; echo ""; } >> Packages
+		;;
+	esac
+	gzip -9nc Packages > Packages.gz
+	cd -
+
+	# Sign the packages
+	usign -G -s ${BUILD_KEY} -p ${BUILD_KEY}.pub -c "Local qbt build key"
+	usign -S -m "${PKGS_DIR}/Packages" -s "${BUILD_KEY}"
+
+	fingerprint=$(usign -F -p ${BUILD_KEY}.pub)
+	cp ${BUILD_KEY}.pub "${KEY_DIR}/$fingerprint"
 fi
 
-# Add to repository
-STAGING_DIR_HOST=$(pwd)/build/staging_dir/host
-SCRIPT_DIR=$(pwd)/build/scripts
-BUILD_KEY=qbt-key
-export MKHASH=${STAGING_DIR_HOST}/bin/mkhash
-export PATH=${STAGING_DIR_HOST}/bin:$PATH
-usign -G -s ${BUILD_KEY} -p ${BUILD_KEY}.pub -c "Local qbt build key"
-
-fingerprint=$(usign -F -p ${BUILD_KEY}.pub)
-cp ${BUILD_KEY}.pub "${KEY_DIR}/$fingerprint"
-
-cd ${PKGS_DIR} && \
-	${SCRIPT_DIR}/ipkg-make-index.sh . > Packages && \
-	gzip -9nc Packages > Packages.gz
-cd "$(echo ${PKGS_DIR} | sed 's/^\///g' | sed 's/\// /g' | sed 's/\S\+/../g' | sed 's/ /\//g')"
-
-usign -S -m "${PKGS_DIR}/Packages" -s "${BUILD_KEY}"
-
 # Generate the install script
-sed 's/^    //g' > ${SAVED_NAME}/install.sh <<-"EOF"
+sed 's/^    //g' > ${SAVE_ROOT_DIR}/install.sh <<-"EOF"
     #!/bin/sh
     work_dir=$(pwd)
-    script_dir="$( cd "$( dirname "$0" )" && pwd )"
+    script_dir="$(cd "$( dirname "$0" )" && pwd)"
 
     cd ${work_dir}
 
-    if [ -n "$(opkg print-architecture | awk '{print $2}' | grep '^${target_arch}$')" ]; then
-    	add_arch=0
-    else
+    if [ "$(opkg print-architecture | sed -n 's/arch \(\S\+\) 10/\1/pg')" != "${target_arch}" ]; then
     	add_arch=1
-    	sed -i "\$a# qbt add start\n$(opkg print-architecture | sed ':a;N;$!ba;s/\n/\\\n/g')\narch ${target_arch} 1\n# qbt add end" /etc/opkg.conf
+    	cat >> /etc/opkg.conf <<-EOF1
+    		# qbt add start
+    		$(opkg print-architecture)
+    		arch ${target_arch} 1
+    		# qbt add end"
+    	EOF1
     fi
 
     case "$1" in
@@ -86,7 +88,9 @@ sed 's/^    //g' > ${SAVED_NAME}/install.sh <<-"EOF"
     		cp ${script_dir}/key/$fingerprint /etc/opkg/keys
     		sed -i "\$asrc\/gz openwrt_qbt file:\/\/$(echo ${script_dir}/pkgs | sed 's/\//\\\//g')" /etc/opkg/customfeeds.conf
 
+    		echo "-------------------------------------------"
     		opkg print-architecture
+    		echo "-------------------------------------------"
 
     		mkdir -p /var/opkg-lists/
     		cp ${script_dir}/pkgs/Packages.gz /var/opkg-lists/openwrt_qbt
@@ -112,27 +116,31 @@ sed 's/^    //g' > ${SAVED_NAME}/install.sh <<-"EOF"
     	;;
     esac
 
-    [ "$add_arch" = 1 ] && sed -i '/# qbt add start/{:a;N;/# qbt add end/!ba;d}' /etc/opkg.conf || exit 0
+    [ "$add_arch" != 1 ] || sed -i '/# qbt add start/{:a;N;/# qbt add end/!ba;d}' /etc/opkg.conf
 EOF
 
-sed -i "s/\${target_arch}/${target_arch}/g" ${SAVED_NAME}/install.sh
-sed -i "s/\$fingerprint/${fingerprint}/g" ${SAVED_NAME}/install.sh
+sed -i -e "s/\${target_arch}/${target_arch}/g" \
+	-e "s/\$fingerprint/${fingerprint}/g" ${SAVE_ROOT_DIR}/install.sh
 
-# Compress the pkgs
-tar -cJf ${SAVED_NAME}.tar.xz ${SAVED_NAME}
-echo "pkgs=true" >> $GITHUB_OUTPUT
+[ ! -d "${PKGS_DIR}" -o ! -d "${KEY_DIR}" ] || {
+	echo "pkgs=true" >> $GITHUB_OUTPUT
+	XZ_OPT="-T0" tar -cJf "../${SAVED_NAME}.tar.xz" -C "${SAVE_ROOT_DIR}/.." ${SAVED_NAME}
+}
+
+[ ! -d "./logs" ] || {
+	echo "logs=true" >> $GITHUB_OUTPUT
+	XZ_OPT="-T0" tar -cJf "../${SAVED_NAME}.logs.tar.xz" "logs"
+}
 
 ## Compress and encrypt the keychain
 # tar -czvf - ${BUILD_KEY}.pub ${BUILD_KEY} | \
-# openssl enc -aes-256-ctr -pbkdf2 -pass pass:${KEYCHAIN_SECRET} > ${SAVED_NAME}-keychain.bin
-## openssl enc -d -aes-256-ctr -pbkdf2 -pass pass:123456 -in ${SAVED_NAME}-keychain.bin | tar -xz
+# openssl enc -aes-256-ctr -pbkdf2 -pass pass:${KEYCHAIN_SECRET} > ${SAVE_ROOT_DIR}-keychain.bin
+## openssl enc -d -aes-256-ctr -pbkdf2 -pass pass:123456 -in ${SAVE_ROOT_DIR}-keychain.bin | tar -xz
 
 # Clean up the obsolete packages
-if [ -d "build/dl" ]; then
-	cd build
+if [ -d "./dl" ]; then
 	./scripts/dl_cleanup.py dl 2>/dev/null
 	rm -rf dl/libtorrent-rasterbar-*.tar.gz
-	cd ..
 fi
 
 rm -rf feeds/self{,tmp,.index,.targetindex}

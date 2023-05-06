@@ -181,8 +181,8 @@ jobs:
       uses: actions/cache@v3
       with:
         path: |
-          ${{ env.SAVED_NAME }}.tar.xz
-          ${{ env.SAVED_NAME }}.log.tar.xz
+          ${{ env.SAVED_NAME }}
+          build/logs
         key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}', matrix.link, matrix.arch, env.USE_SDK_VERSION, env.USE_LIBT_HASH, env.USE_BINARY_HASH) }}
     - name: Cache downloaded source files (exclude Qt)
       if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
@@ -226,13 +226,13 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: ${{ env.SAVED_NAME }}-pkgs_${{ github.run_attempt }}
-        path: ./${{ env.SAVED_NAME }}.tar.xz
+        path: ${{ env.SAVED_NAME }}.tar.xz
     - name: Upload Logs
       if: (success() || failure()) && steps.pack-all.outputs.logs == 'true'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ env.SAVED_NAME }}-log_${{ github.run_attempt }}
-        path: ./${{ env.SAVED_NAME }}.log.tar.xz
+        name: ${{ env.SAVED_NAME }}-logs_${{ github.run_attempt }}
+        path: ${{ env.SAVED_NAME }}.logs.tar.xz
     - name: Cache rootfs
       if: matrix.runtime_test
       id: cache-rootfs
