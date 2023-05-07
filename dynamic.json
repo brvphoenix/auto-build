@@ -18,33 +18,41 @@
 		},
 		"mips_24kc": {
 			"USE_TARGET": "malta-be",
-			"RUNTIME_TEST": true
+			"RUNTIME_TEST": true,
+			"USE_QEMU_CPU": "24Kc"
 		},
 		"mipsel_24kc": {
-			"USE_TARGET": "ramips-mt7621"
+			"USE_TARGET": "ramips-mt7621",
+			"RUNTIME_TEST": true,
+			"USE_QEMU_CPU": "24Kc",
+			"USE_IMAGEBUILDER": true
 		},
 		"arm_cortex-a9": {
 			"USE_TARGET": "bcm53xx-generic",
 			"RUNTIME_TEST": true,
-			"RUN_ON_TARGET": "armvirt-32"
+			"USE_QEMU_CPU": "cortex-a9",
+			"USE_IMAGEBUILDER": true
 		},
 		"arm_cortex-a7_neon-vfpv4": {
 			"USE_TARGET": "sunxi-cortexa7",
 			"RUNTIME_TEST": true,
-			"RUN_ON_TARGET": "armvirt-32"
+			"USE_QEMU_CPU": "cortex-a7",
+			"USE_IMAGEBUILDER": true
 		},
 		"arm_cortex-a9_vfpv3-d16": {
 			"USE_TARGET": "mvebu-cortexa9",
 			"RUNTIME_TEST": true,
-			"RUN_ON_TARGET": "armvirt-32"
+			"USE_QEMU_CPU": "cortex-a9"
 		},
 		"arm_cortex-a15_neon-vfpv4": {
 			"USE_TARGET": "armvirt-32",
-			"RUNTIME_TEST": true
+			"RUNTIME_TEST": true,
+			"USE_QEMU_CPU": "cortex-a15"
 		},
 		"aarch64_cortex-a53": {
 			"USE_TARGET": "armvirt-64",
-			"RUNTIME_TEST": true
+			"RUNTIME_TEST": true,
+			"USE_QEMU_CPU": "cortex-a53"
 		}
 	}
 }
