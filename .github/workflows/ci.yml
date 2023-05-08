@@ -70,28 +70,34 @@ jobs:
         }
     - name: Format build matrix
       id: set-matrix
+      env:
+        inputs_type: ${{ github.event.inputs.type }}
+        inputs_arch: ${{ github.event.inputs.arch }}
+        inputs_qt: ${{ github.event.inputs.qt }}
+        inputs_lt: ${{ github.event.inputs.lt }}
       run: |
         matrix='[]'
         for json_file in ./*.json; do
         	json_file_name=$(basename $json_file)
         	link=${json_file_name%.*}
-        	[ -z "${{ github.event.inputs.type }}" ] || [ "${{ github.event.inputs.type }}" = "all" ] || [ "${{ github.event.inputs.type }}" = "${link}" ] || continue;
-        	[ "$(jq -r '.openwrt.RUN_SKIP? // false' ${json_file})" = "false" ] || continue;
-        	for arch in $(jq -r '.openwrt | to_entries[] | select((.value | type) == "object") | .key' ${json_file}); do
-        		arch_wo_endian=${{ github.event.inputs.arch }}
-        		arch_w_endian=$(echo $arch | cut -d '_' -f 1)
-        		[ -z "${arch_wo_endian}" ] || [ "${arch_wo_endian}" = "all" ] || [ "${arch_wo_endian}" = "${arch_w_endian}" ] || [ "${arch_wo_endian}el" = "${arch_w_endian}" ] || [ "${arch_wo_endian}eb" = "${arch_w_endian}" ] || continue;
-        		[ "$(jq -r '.openwrt."'$arch'".RUN_SKIP? // false' ${json_file})" = "false" ] || continue;
-        		runtime_test=$(jq -r '.openwrt."'$arch'".RUNTIME_TEST? // false' ${json_file})
-        		for libtorrent in $(jq -r '.qbittorrent.LIBTORRENT_VERSION? | to_entries[]? | .key?' ${json_file}); do
-        			[ -z "${{ github.event.inputs.lt }}" ] || [ "${{ github.event.inputs.lt }}" = "all" ] || [ "${{ github.event.inputs.lt }}" = "${libtorrent/_/.}" ] || continue;
-        			for qt in $(jq -r '.qbittorrent.QT_VERSION? | to_entries[]? | .key?' ${json_file}); do
-        				[ -z "${{ github.event.inputs.qt }}" ] || [ "${{ github.event.inputs.qt }}" = "all" ] || [ "${{ github.event.inputs.qt }}" = "${qt}" ] || continue;
-        				matrix="$(echo $matrix | jq -c '. += [{libtorrent:"'${libtorrent}'",qt:"'${qt}'",link:"'${link}'",arch:"'${arch}'",runtime_test:'${runtime_test}'}]')"
-        			done
-        		done
-        	done
+        	[ -z "${inputs_type}" ] || [ "${inputs_type}" = "all" ] || [ "${inputs_type}" = "${link}" ] || continue;
+
+        	matrix=$(jq -c --argjson mt "${matrix}" --arg lt "${inputs_lt/./_}" --arg qt "${inputs_qt}" --arg arch "${inputs_arch}" --arg link "${link}" '
+        		foreach (.openwrt | (if (.RUN_SKIP? // false) then [] else . end) | to_entries | map(select((.value | type) == "object"))) as $item (
+        			[{
+        				libtorrent: .qbittorrent.LIBTORRENT_VERSION? | to_entries[]? | .key? | select($lt == "" or $lt == "all" or $lt == .),
+        				qt: .qbittorrent.QT_VERSION? | to_entries[]? | .key? | select($qt == "" or $qt == "all" or $qt == .),
+        				link: $link,
+        				arch: .openwrt | to_entries[] | select((.value | type) == "object" and (.value?.RUN_SKIP? // false) != true) | .key | (
+        					select($arch == "" or $arch == "all" or (split("_") | .[0]) == $arch or startswith("\($arch)el") or startswith("\($arch)eb"))
+        				)
+        			}];
+        			map(select(.arch == $item[].key) | .arch as $target_arch | . += {runtime_test: $item[] | select(.key == $target_arch) | (.value?.RUNTIME_TEST? // false)});
+        			.
+        		) | . + $mt | unique | sort_by(.link + .arch)
+        	' ${link}.json)
         done
+
         [ "${matrix}" != "[]" ] || exit 1
         echo "matrix={\"include\":${matrix}}" >> $GITHUB_OUTPUT
     - name: Create draft
