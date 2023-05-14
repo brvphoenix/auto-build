@@ -20,6 +20,7 @@ PKG_CPE_ID:=cpe:/a:libtorrent:libtorrent
 PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
 PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS+=no-mips16
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -38,8 +39,8 @@ define Package/$(PKG_NAME)/description
   It boasts a well documented library interface that is easy to use.
 endef
 
-TARGET_CFLAGS += $(FPIC) -ffunction-sections -fdata-sections
-TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
+TARGET_CFLAGS += $(FPIC) -ffunction-sections -fdata-sections -flto=auto -fno-fat-lto-objects
+TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed -flto=auto -fuse-linker-plugin
 
 CONFIGURE_ARGS += \
 	--enable-shared=yes \

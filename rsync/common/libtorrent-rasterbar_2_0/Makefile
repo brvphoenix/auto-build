@@ -54,13 +54,12 @@ define Package/python3-libtorrent/description
   is a python module that can be imported in a python program.
 endef
 
-TARGET_CFLAGS += $(FPIC) -ffunction-sections -fdata-sections
-TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
+TARGET_CFLAGS += $(FPIC) -ffunction-sections -fdata-sections -flto=auto -fno-fat-lto-objects
+TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed -flto=auto -fuse-linker-plugin
 
 CMAKE_OPTIONS += \
 	-DBUILD_SHARED_LIBS=ON \
 	-DCMAKE_BUILD_TYPE=Release \
-	-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
 	-Ddeprecated-functions=OFF \
 	-Dlogging=OFF \
 	-DCMAKE_CXX_STANDARD=17 \
