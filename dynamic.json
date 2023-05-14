@@ -53,6 +53,18 @@
 			"USE_TARGET": "armvirt-64",
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "cortex-a53"
+		},
+		"powerpc_464fp": {
+			"USE_TARGET": "apm821xx-nand",
+			"RUNTIME_TEST": true,
+			"USE_QEMU_CPU": "440epx",
+			"USE_IMAGEBUILDER": true
+		},
+		"powerpc_8548": {
+			"USE_TARGET": "mpc85xx-p1010",
+			"RUNTIME_TEST": true,
+			"USE_QEMU_CPU": "mpc8548",
+			"USE_IMAGEBUILDER": true
 		}
 	}
 }

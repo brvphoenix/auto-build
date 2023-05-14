@@ -29,6 +29,7 @@ on:
         - arm
         - x86
         - mips
+        - powerpc
         - all
       qt:
         description: 'QT version'
