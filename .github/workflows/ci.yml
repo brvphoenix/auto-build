@@ -234,6 +234,12 @@ jobs:
       with:
         name: ${{ env.SAVED_NAME }}-pkgs_${{ github.run_attempt }}
         path: ${{ env.SAVED_NAME }}.tar.xz
+    - name: Upload sha256sums
+      if: steps.pack-all.outputs.pkgs == 'true'
+      uses: actions/upload-artifact@v3
+      with:
+        name: sha256sum
+        path: ${{ env.SAVED_NAME }}.sha256sum
     - name: Upload Logs
       if: (success() || failure()) && steps.pack-all.outputs.logs == 'true'
       uses: actions/upload-artifact@v3
@@ -414,8 +420,18 @@ jobs:
     steps:
     - name: Clone Current Repository
       uses: actions/checkout@v3
+    - name: Download the sha256sum
+      uses: actions/download-artifact@v3
+      with:
+        name: sha256sum
+        path: hash
     - name: Edit Release Status
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        touch sha256sum
+        for sha256sum in hash/*.sha256sum; do
+        	cat $sha256sum >> sha256sum
+        done
+        hub release edit "${GITHUB_REF_NAME}" -a sha256sum -m ""
         hub release edit "${GITHUB_REF_NAME}" -p --draft=false -m ""

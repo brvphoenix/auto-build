@@ -125,6 +125,9 @@ sed -i -e "s/\${target_arch}/${target_arch}/g" \
 [ ! -d "${PKGS_DIR}" -o ! -d "${KEY_DIR}" ] || {
 	echo "pkgs=true" >> $GITHUB_OUTPUT
 	XZ_OPT="-T0" tar -cJf "../${SAVED_NAME}.tar.xz" -C "${SAVE_ROOT_DIR}/.." ${SAVED_NAME}
+	cd ..
+	sha256sum -b ${SAVED_NAME}.tar.xz > ${SAVED_NAME}.sha256sum
+	cd -
 }
 
 [ ! -d "./logs" ] || {
