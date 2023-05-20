@@ -124,9 +124,10 @@ jobs:
         persist-credentials: false
     - name: Install Dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get -y install build-essential curl flex gawk git jq libncurses5-dev \
-        			libssl-dev python3 python3-distutils xz-utils zlib1g-dev
+        [ -n "$(command -v curl)" -a -n "$(command -v jq)" ] || {
+          sudo apt-get update
+          sudo apt-get -y install curl jq
+        }
     - name: Initializing
       working-directory: ./auto-build
       run: |
@@ -316,7 +317,10 @@ jobs:
     - name: Register QEMU
       if: matrix.runtime_test
       run: |
-        [ -n "$(command -v update-binfmts)" ] || sudo apt-get -y install binfmt-support
+        [ -n "$(command -v update-binfmts)" ] || {
+        	sudo apt-get update
+        	sudo apt-get -y install binfmt-support
+        }
 
         ## Update binfmts using ubuntu's binfmt files.
         #sudo update-binfmts --import
