@@ -11,7 +11,7 @@
 	},
 	"openwrt": {
 		"USE_DOWNLOAD_SERVER": "https://downloads.openwrt.org",
-		"USE_VERSION": "22.03.3",
+		"USE_VERSION": "22.03-SNAPSHOT",
 		"x86_64": {
 			"USE_TARGET": "x86-64",
 			"RUNTIME_TEST": true
