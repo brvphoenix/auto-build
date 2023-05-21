@@ -23,6 +23,13 @@ done
 USE_SOURCE_URL=${USE_DOWNLOAD_SERVER}/${version_path}/targets/${USE_TARGET//-/\/}
 
 curl -ksLOZ --compressed ${USE_SOURCE_URL}/sha256sums
+curl -ksLOZ --compressed ${USE_SOURCE_URL}/sha256sums.asc
+
+# Verify the sha256sum with sha256sum.asc
+curl -fskLOZ --compressed --connect-timeout 10 --retry 5 https://raw.githubusercontent.com/openwrt/docker/main/keys/${USE_KEYRING_NAME}
+gpg --import ${USE_KEYRING_NAME}
+gpg --with-fingerprint --verify sha256sums.asc sha256sums
+
 sdkfile="openwrt-sdk-.*.Linux-x86_64.tar.xz"
 grep -i "${sdkfile}" sha256sums > sdk.sha256sums
 USE_SDK_FILE=$(grep -io "${sdkfile}" sdk.sha256sums)

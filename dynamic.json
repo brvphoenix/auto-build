@@ -11,6 +11,7 @@
 	},
 	"openwrt": {
 		"USE_DOWNLOAD_SERVER": "https://downloads.openwrt.org",
+		"USE_KEYRING_NAME": "CD54E82DADB3684D.asc",
 		"USE_VERSION": "22.03-SNAPSHOT",
 		"x86_64": {
 			"USE_TARGET": "x86-64",

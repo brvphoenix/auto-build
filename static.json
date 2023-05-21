@@ -11,6 +11,7 @@
 	},
 	"openwrt": {
 		"USE_DOWNLOAD_SERVER": "https://downloads.openwrt.org",
+		"USE_KEYRING_NAME": "626471F1.asc",
 		"USE_VERSION": "snapshots",
 		"x86_64": {
 			"USE_TARGET": "x86-64",
