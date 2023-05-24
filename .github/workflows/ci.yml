@@ -54,6 +54,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ format('{0}-{1}-{2}-{3}', github.event.inputs.type, github.event.inputs.arch, github.event.inputs.qt, github.event.inputs.lt) }}
   cancel-in-progress: true
 
+permissions:
+  contents: write|read
+  metadata: read
+
 jobs:
   build-prep:
     runs-on: ubuntu-latest
@@ -107,8 +111,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        [ "$(hub release --include-drafts | grep "${GITHUB_REF_NAME}" | wc -l)" -eq 0 ] || hub release delete "${GITHUB_REF_NAME}"
-        hub release create -d -t master -m "Release ${GITHUB_REF_NAME}" "${GITHUB_REF_NAME}"
+        [ "$(gh release list | grep "${GITHUB_REF_NAME}$" | wc -l)" -eq 0 ] || gh release delete "${GITHUB_REF_NAME}" -y
+        gh release create -d --verify-tag --generate-notes -t "Release ${GITHUB_REF_NAME}" "${GITHUB_REF_NAME}"
   build-matrix:
     name: ${{ matrix.link }}, ${{ matrix.arch }}, qt${{ matrix.qt }}, libtorrent_${{ matrix.libtorrent }}
     needs: build-prep
@@ -416,7 +420,7 @@ jobs:
       run: |
         [ -n "$(find ${SAVED_NAME} -type f -iname *qbittorrent*)" ] || exit 1
         cd auto-build
-        hub release edit "${GITHUB_REF_NAME}" -a "../${SAVED_NAME}.tar.xz" -m ""
+        gh release upload "${GITHUB_REF_NAME}" "../${SAVED_NAME}.tar.xz" --clobber
   pre-release:
     if: needs.build-prep.outputs.draft == 'success'
     needs: [build-prep, build-matrix]
@@ -437,5 +441,5 @@ jobs:
         for sha256sum in hash/*.sha256sum; do
         	cat $sha256sum >> sha256sum
         done
-        hub release edit "${GITHUB_REF_NAME}" -a sha256sum -m ""
-        hub release edit "${GITHUB_REF_NAME}" -p --draft=false -m ""
+        gh release upload "${GITHUB_REF_NAME}" sha256sum --clobber
+        gh release edit "${GITHUB_REF_NAME}" --latest --prerelease --target "${GITHUB_SHA}"
