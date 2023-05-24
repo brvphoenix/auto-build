@@ -55,8 +55,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write|read
-  metadata: read
+  contents: write
 
 jobs:
   build-prep:
