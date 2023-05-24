@@ -110,7 +110,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        [ "$(gh release list | grep "${GITHUB_REF_NAME}$" | wc -l)" -eq 0 ] || gh release delete "${GITHUB_REF_NAME}" -y
+        while [ "$(gh release list | cut -f 3 | grep '^'${GITHUB_REF_NAME}'$' | wc -l)" -ne 0 ]; do gh release delete "${GITHUB_REF_NAME}" -y; done
         gh release create -d --verify-tag --generate-notes -t "Release ${GITHUB_REF_NAME}" "${GITHUB_REF_NAME}"
   build-matrix:
     name: ${{ matrix.link }}, ${{ matrix.arch }}, qt${{ matrix.qt }}, libtorrent_${{ matrix.libtorrent }}
@@ -441,4 +441,4 @@ jobs:
         	cat $sha256sum >> sha256sum
         done
         gh release upload "${GITHUB_REF_NAME}" sha256sum --clobber
-        gh release edit "${GITHUB_REF_NAME}" --latest --prerelease --target "${GITHUB_SHA}"
+        gh release edit "${GITHUB_REF_NAME}" --draft=false --prerelease
