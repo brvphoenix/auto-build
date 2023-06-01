@@ -233,7 +233,7 @@ jobs:
       run: |
         bash ./auto-build/pack_all.sh "${{ matrix.arch }}" "${{ matrix.link }}" "${{ matrix.libtorrent }}"
     - name: Upload Pkgs
-      if: needs.build-prep.outputs.draft != 'true' && steps.pack-all.outputs.pkgs == 'true'
+      if: needs.build-prep.outputs.draft != 'success' && steps.pack-all.outputs.pkgs == 'true'
       uses: actions/upload-artifact@v3
       with:
         name: ${{ env.SAVED_NAME }}-pkgs_${{ github.run_attempt }}
