@@ -15,56 +15,46 @@
 		"USE_KEYRING": "CD54E82DADB3684D.asc",
 		"USE_RUNTIME_TEST_VER": "22.03-SNAPSHOT",
 		"USE_RUNTIME_TEST_KEYRING": "CD54E82DADB3684D.asc",
-		"x86_64": {
-			"USE_TARGET": "x86-64",
+		"x86-64": {
 			"RUNTIME_TEST": true
 		},
-		"mips_24kc": {
-			"USE_TARGET": "malta-be",
+		"malta-be": {
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "24Kc"
 		},
-		"mipsel_24kc": {
-			"USE_TARGET": "ramips-mt7621",
+		"ramips-mt7621": {
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "24Kc",
 			"USE_IMAGEBUILDER": true
 		},
-		"arm_cortex-a9": {
-			"USE_TARGET": "bcm53xx-generic",
+		"bcm53xx-generic": {
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "cortex-a9",
 			"USE_IMAGEBUILDER": true
 		},
-		"arm_cortex-a7_neon-vfpv4": {
-			"USE_TARGET": "sunxi-cortexa7",
+		"sunxi-cortexa7": {
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "cortex-a7",
 			"USE_IMAGEBUILDER": true
 		},
-		"arm_cortex-a9_vfpv3-d16": {
-			"USE_TARGET": "mvebu-cortexa9",
+		"mvebu-cortexa9": {
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "cortex-a9"
 		},
-		"arm_cortex-a15_neon-vfpv4": {
-			"USE_TARGET": "armvirt-32",
+		"armvirt-32": {
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "cortex-a15"
 		},
-		"aarch64_cortex-a53": {
-			"USE_TARGET": "armvirt-64",
+		"armvirt-64": {
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "cortex-a53"
 		},
-		"powerpc_464fp": {
-			"USE_TARGET": "apm821xx-nand",
+		"apm821xx-nand": {
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "440epx",
 			"USE_IMAGEBUILDER": true
 		},
-		"powerpc_8548": {
-			"USE_TARGET": "mpc85xx-p1010",
+		"mpc85xx-p1010": {
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "mpc8548",
 			"USE_IMAGEBUILDER": true

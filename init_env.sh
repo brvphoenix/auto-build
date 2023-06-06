@@ -3,7 +3,7 @@
 set -eET -o pipefail
 . ${GITHUB_WORKSPACE}/auto-build/build_default.sh
 
-target_arch=$1
+target_name=$1
 link_type=$2
 qt_ver=$3
 libt_ver=$4
@@ -15,7 +15,7 @@ for item in $(jq -r '.openwrt | to_entries[] | select(.value | (type != "object"
 	eval "${item}"
 done
 
-for option in $(jq -r '.openwrt."'${target_arch}'" | to_entries[] | "\(.key)=\(.value)"' ${JSON_FILE}); do
+for option in $(jq -r '.openwrt."'${target_name}'" | to_entries[] | "\(.key)=\(.value)"' ${JSON_FILE}); do
 	eval "${option}"
 done
 
@@ -59,12 +59,12 @@ generate_variant() {
 	. $GITHUB_ENV
 }
 
-generate_variant "sdk" "${USE_VERSION}" "${USE_TARGET}" "${USE_KEYRING}" "${sdk_pattern}"
+generate_variant "sdk" "${USE_VERSION}" "${target_name}" "${USE_KEYRING}" "${sdk_pattern}"
 [ -n "${USE_SDK_FILE}" ] || exit 1;
 
 if [ "${USE_IMAGEBUILDER}" = 'true' -a "${RUNTIME_TEST}" = "true" ]; then
 	echo "USE_IMAGEBUILDER=${USE_IMAGEBUILDER}" >> $GITHUB_ENV
-	generate_variant "imagebuilder" "${USE_RUNTIME_TEST_VER}" "${USE_TARGET}" "${USE_RUNTIME_TEST_KEYRING}"
+	generate_variant "imagebuilder" "${USE_RUNTIME_TEST_VER}" "${target_name}" "${USE_RUNTIME_TEST_KEYRING}"
 	[ -n "${USE_IMAGEBUILDER_FILE}" ] || exit 1
 fi
 
@@ -114,7 +114,7 @@ snapshots)
 esac
 
 # Openwrt tag for docker image
-docker_rootfs_tag="${RUN_ON_TARGET:-${USE_TARGET}}-${version_label}"
+docker_rootfs_tag="${RUN_ON_TARGET:-${target_name}}-${version_label}"
 echo "USE_DOCKER_ROOTFS_TAG=${docker_rootfs_tag}" >> $GITHUB_ENV
 
 # Get the docker image hash
@@ -129,6 +129,3 @@ if [ "${RUNTIME_TEST}" = "true" ]; then
 			| sed -n 's/docker-content-digest:\s\+sha256:\(\w\+\)/\1/gp' | xargs -i echo "USE_ROOTFS_HASH={}" >> $GITHUB_ENV || exit 1
 	fi
 fi
-
-# Common name of the saved files
-echo "SAVED_NAME=${target_arch}-${link_type}-qt${qt_ver}-libtorrent_${libt_ver}" >> $GITHUB_ENV

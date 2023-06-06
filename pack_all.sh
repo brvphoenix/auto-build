@@ -5,13 +5,13 @@ set -eET -o pipefail
 
 [ -d build ] && cd build || { echo "Not exist 'build' dir"; exit 0; }
 
-target_arch=$1
+target_name=$1
 link_type=$2
-libt_ver=$3
+qt_ver=$3
+libt_ver=$4
+target_arch=$(perl ./scripts/dump-target-info.pl targets 2>/dev/null | grep "${target_name//-/\/}" | cut -d ' ' -f 2)
 
-# The save path of the packages
-[ -n "${SAVED_NAME}" ] || exit 125
-SAVE_ROOT_DIR=../${SAVED_NAME}
+SAVE_ROOT_DIR=${GITHUB_WORKSPACE}/qbittorrent_${target_name}
 PKGS_DIR=${SAVE_ROOT_DIR}/pkgs
 KEY_DIR=${SAVE_ROOT_DIR}/key
 
@@ -122,10 +122,15 @@ EOF
 sed -i -e "s/\${target_arch}/${target_arch}/g" \
 	-e "s/\$fingerprint/${fingerprint}/g" ${SAVE_ROOT_DIR}/install.sh
 
+SAVED_NAME="${target_arch}-${link_type}-qt${qt_ver}-lt_${libt_ver}"
+# Add SAVED_NAME to the environment variables
+echo "SAVED_NAME=${SAVED_NAME}" >> $GITHUB_ENV
+
 [ ! -d "${PKGS_DIR}" -o ! -d "${KEY_DIR}" ] || {
 	echo "pkgs=true" >> $GITHUB_OUTPUT
-	XZ_OPT="-T0" tar -cJf "../${SAVED_NAME}.tar.xz" -C "${SAVE_ROOT_DIR}/.." ${SAVED_NAME}
 	cd ..
+	ln -sf "${SAVE_ROOT_DIR}" "${SAVED_NAME}"
+	XZ_OPT="-T0" tar -cJf "${SAVED_NAME}.tar.xz" ${SAVED_NAME}/*
 	sha256sum -b ${SAVED_NAME}.tar.xz > ${SAVED_NAME}.sha256sum
 	cd -
 }

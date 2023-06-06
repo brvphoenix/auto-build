@@ -19,17 +19,20 @@ on:
         - dynamic
         - static
         - all
-      arch:
-        description: 'Architecture'
+      target:
+        description: 'Target Name'
         required: true
         default: 'all'
         type: choice
         options:
-        - aarch64
-        - arm
-        - x86
-        - mips
-        - powerpc
+        - malta
+        - ramips
+        - bcm53xx
+        - sunxi
+        - mvebu
+        - armvirt
+        - apm821xx
+        - mpc85xx
         - all
       qt:
         description: 'QT version'
@@ -51,7 +54,7 @@ on:
         - all
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ format('{0}-{1}-{2}-{3}', github.event.inputs.type, github.event.inputs.arch, github.event.inputs.qt, github.event.inputs.lt) }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ format('{0}-{1}-{2}-{3}', github.event.inputs.type, github.event.inputs.target, github.event.inputs.qt, github.event.inputs.lt) }}
   cancel-in-progress: true
 
 permissions:
@@ -76,7 +79,7 @@ jobs:
       id: set-matrix
       env:
         inputs_type: ${{ github.event.inputs.type }}
-        inputs_arch: ${{ github.event.inputs.arch }}
+        inputs_target: ${{ github.event.inputs.target }}
         inputs_qt: ${{ github.event.inputs.qt }}
         inputs_lt: ${{ github.event.inputs.lt }}
       run: |
@@ -86,19 +89,19 @@ jobs:
         	link=${json_file_name%.*}
         	[ -z "${inputs_type}" ] || [ "${inputs_type}" = "all" ] || [ "${inputs_type}" = "${link}" ] || continue;
 
-        	matrix=$(jq -c --argjson mt "${matrix}" --arg lt "${inputs_lt/./_}" --arg qt "${inputs_qt}" --arg arch "${inputs_arch}" --arg link "${link}" '
+        	matrix=$(jq -c --argjson mt "${matrix}" --arg lt "${inputs_lt/./_}" --arg qt "${inputs_qt}" --arg target "${inputs_target}" --arg link "${link}" '
         		foreach (.openwrt | (if (.RUN_SKIP? // false) then [] else . end) | to_entries | map(select((.value | type) == "object"))) as $item (
         			[{
         				libtorrent: .qbittorrent.LIBTORRENT_VERSION? | to_entries[]? | .key? | select($lt == "" or $lt == "all" or $lt == .),
         				qt: .qbittorrent.QT_VERSION? | to_entries[]? | .key? | select($qt == "" or $qt == "all" or $qt == .),
         				link: $link,
-        				arch: .openwrt | to_entries[] | select((.value | type) == "object" and (.value?.RUN_SKIP? // false) != true) | .key | (
-        					select($arch == "" or $arch == "all" or (split("_") | .[0]) == $arch or startswith("\($arch)el") or startswith("\($arch)eb"))
+        				target: .openwrt | to_entries[] | select((.value | type) == "object" and (.value?.RUN_SKIP? // false) != true) | .key | (
+        					select($target == "" or $target == "all" or (split("-") | .[0]) == $target)
         				)
         			}];
-        			map(select(.arch == $item[].key) | .arch as $target_arch | . += {runtime_test: $item[] | select(.key == $target_arch) | (.value?.RUNTIME_TEST? // false)});
+        			map(select(.target == $item[].key) | .target as $tg | . += {runtime_test: $item[] | select(.key == $tg) | (.value?.RUNTIME_TEST? // false)});
         			.
-        		) | . + $mt | unique | sort_by(.link + .arch)
+        		) | . + $mt | unique | sort_by(.link + .target)
         	' ${link}.json)
         done
 
@@ -113,7 +116,7 @@ jobs:
         while [ "$(gh release list | cut -f 3 | grep '^'${GITHUB_REF_NAME}'$' | wc -l)" -ne 0 ]; do gh release delete "${GITHUB_REF_NAME}" -y; done
         gh release create -d --verify-tag --generate-notes -t "Release ${GITHUB_REF_NAME}" "${GITHUB_REF_NAME}"
   build-matrix:
-    name: ${{ matrix.link }}, ${{ matrix.arch }}, qt${{ matrix.qt }}, libtorrent_${{ matrix.libtorrent }}
+    name: ${{ matrix.link }}, ${{ matrix.target }}, qt${{ matrix.qt }}, libtorrent_${{ matrix.libtorrent }}
     needs: build-prep
     runs-on: ubuntu-latest
     strategy:
@@ -134,13 +137,13 @@ jobs:
     - name: Initializing
       working-directory: ./auto-build
       run: |
-        bash ./init_env.sh "${{ matrix.arch }}" "${{ matrix.link }}" "${{ matrix.qt }}" "${{ matrix.libtorrent }}"
+        bash ./init_env.sh "${{ matrix.target }}" "${{ matrix.link }}" "${{ matrix.qt }}" "${{ matrix.libtorrent }}"
     - name: Cache SDK
       uses: actions/cache@v3
       id: cache-sdk
       with:
         path: ./${{ env.USE_SDK_FILE }}
-        key: ${{ matrix.link }}-${{ matrix.arch }}-${{ env.USE_SDK_VERSION }}
+        key: ${{ matrix.link }}-${{ matrix.target }}-${{ env.USE_SDK_VERSION }}
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
       run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_SDK_URL}/${USE_SDK_FILE}"
     - run: |
@@ -192,9 +195,9 @@ jobs:
       uses: actions/cache@v3
       with:
         path: |
-          ${{ env.SAVED_NAME }}
+          qbittorrent_${{ matrix.target }}
           build/logs
-        key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}', matrix.link, matrix.arch, env.USE_SDK_VERSION, env.USE_LIBT_HASH, env.USE_BINARY_HASH) }}
+        key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}', matrix.link, matrix.target, env.USE_SDK_VERSION, env.USE_LIBT_HASH, env.USE_BINARY_HASH) }}
     - name: Cache downloaded source files (exclude Qt)
       if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
       uses: actions/cache@v3
@@ -231,12 +234,12 @@ jobs:
       env:
         CACHE_HIT: ${{ steps.cache-bin.outputs.cache-hit }}
       run: |
-        bash ./auto-build/pack_all.sh "${{ matrix.arch }}" "${{ matrix.link }}" "${{ matrix.libtorrent }}"
+        bash ./auto-build/pack_all.sh "${{ matrix.target }}" "${{ matrix.link }}" "${{ matrix.qt }}" "${{ matrix.libtorrent }}"
     - name: Upload Pkgs
       if: needs.build-prep.outputs.draft != 'success' && steps.pack-all.outputs.pkgs == 'true'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ env.SAVED_NAME }}-pkgs_${{ github.run_attempt }}
+        name: ${{ matrix.target }}-${{ matrix.link }}-qt${{ matrix.qt }}-libtorrent_${{ matrix.libtorrent }}-pkgs_${{ github.run_attempt }}
         path: ${{ env.SAVED_NAME }}.tar.xz
     - name: Upload sha256sums
       if: steps.pack-all.outputs.pkgs == 'true'
@@ -248,7 +251,7 @@ jobs:
       if: (success() || failure()) && steps.pack-all.outputs.logs == 'true'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ env.SAVED_NAME }}-logs_${{ github.run_attempt }}
+        name: ${{ matrix.target }}-${{ matrix.link }}-qt${{ matrix.qt }}-libtorrent_${{ matrix.libtorrent }}-logs_${{ github.run_attempt }}
         path: ${{ env.SAVED_NAME }}.logs.tar.xz
     - name: Cache Custom rootfs
       if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true'
@@ -263,7 +266,7 @@ jobs:
       id: cache-ib
       with:
         path: ./${{ env.USE_IMAGEBUILDER_FILE }}
-        key: IB-${{ matrix.arch }}-${{ env.USE_IMAGEBUILDER_VERSION }}
+        key: IB-${{ matrix.target }}-${{ env.USE_IMAGEBUILDER_VERSION }}
     - if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true' && steps.cache-rootfs-files.outputs.cache-hit != 'true' && steps.cache-ib.outputs.cache-hit != 'true'
       run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_IMAGEBUILDER_URL}/${USE_IMAGEBUILDER_FILE}"
     - if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true' && steps.cache-rootfs-files.outputs.cache-hit != 'true'
@@ -275,7 +278,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ./imagebuilder/dl
-        key: IB-dl-${{ matrix.arch }}-${{ env.USE_IMAGEBUILDER_VERSION }}
+        key: IB-dl-${{ matrix.target }}-${{ env.USE_IMAGEBUILDER_VERSION }}
     - name: Generate custom rootfs docker
       if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true' && steps.cache-rootfs-files.outputs.cache-hit != 'true'
       working-directory: ./imagebuilder
@@ -417,7 +420,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        [ -n "$(find ${SAVED_NAME} -type f -iname *qbittorrent*)" ] || exit 1
+        [ -n "$(find -L ${SAVED_NAME} -type f -iname '*qbittorrent*')" ] || exit 1
         cd auto-build
         gh release upload "${GITHUB_REF_NAME}" "../${SAVED_NAME}.tar.xz" --clobber
   pre-release:
