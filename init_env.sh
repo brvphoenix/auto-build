@@ -19,32 +19,52 @@ for option in $(jq -r '.openwrt."'${target_arch}'" | to_entries[] | "\(.key)=\(.
 	eval "${option}"
 done
 
-[ "${USE_VERSION}" = "snapshots" ] && version_path="snapshots" || version_path="releases/${USE_VERSION}"
-USE_SOURCE_URL=${USE_DOWNLOAD_SERVER}/${version_path}/targets/${USE_TARGET//-/\/}
+generate_variant() {
+	local name=$1
+	local version=$2
+	local target=$3
+	local keyring=$4
+	local name_upper=$(echo $name | tr 'a-z' 'A-Z')
+	local pattern="openwrt-${name}-.*.Linux-x86_64.tar.xz"
 
-curl -ksLOZ --compressed ${USE_SOURCE_URL}/sha256sums
-curl -ksLOZ --compressed ${USE_SOURCE_URL}/sha256sums.asc
+	if [ -z "$(eval echo \${USE_${name_upper}_URL})" ]; then
+		[ "${version}" = "snapshots" ] && version_path="snapshots" || version_path="releases/${version}"
+		download_url=${USE_DOWNLOAD_SERVER}/${version_path}/targets/${target//-/\/}
+		echo "USE_${name_upper}_URL=${download_url}" >> $GITHUB_ENV
+	fi
 
-# Verify the sha256sum with sha256sum.asc
-curl -fskLOZ --compressed --connect-timeout 10 --retry 5 https://raw.githubusercontent.com/openwrt/docker/main/keys/${USE_KEYRING_NAME}
-gpg --import ${USE_KEYRING_NAME}
-gpg --with-fingerprint --verify sha256sums.asc sha256sums
+	[ -f "${version}.sha256sums" ] || curl -ksLZ --compressed -o "${version}.sha256sums" ${download_url}/sha256sums
+	[ -f "${version}.sha256sums.asc" ] || curl -ksLZ --compressed -o "${version}.sha256sums.asc" ${download_url}/sha256sums.asc
 
-sdkfile="openwrt-sdk-.*.Linux-x86_64.tar.xz"
-grep -i "${sdkfile}" sha256sums > sdk.sha256sums
-USE_SDK_FILE=$(grep -io "${sdkfile}" sdk.sha256sums)
+	# Verify the sha256sum with sha256sum.asc
+	[ -f "${keyring}" ] || curl -fskLOZ --compressed --connect-timeout 10 --retry 5 https://raw.githubusercontent.com/openwrt/docker/main/keys/${keyring}
+	gpg --import "${keyring}"
+	gpg --with-fingerprint --verify ${version}.sha256sums.asc ${version}.sha256sums
 
-echo "USE_SDK_FILE=${USE_SDK_FILE}" >> $GITHUB_ENV
-echo "USE_SOURCE_URL=${USE_SOURCE_URL}" >> $GITHUB_ENV
+	if [ -z "$(eval echo \${USE_${name_upper}_FILE})" ]; then
+		grep -i "${pattern}" ${version}.sha256sums > "${name}.sha256sums"
+		fname=$(grep -io "${pattern}" "${name}.sha256sums")
+		echo "USE_${name_upper}_FILE=${fname}" >> $GITHUB_ENV
+	fi
+
+	if [ -z "$(eval echo \${USE_${name_upper}_VERSION})" ]; then
+		http_code=$(curl -fskILZ -o /dev/null -w %{http_code} --compressed ${download_url}/version.buildinfo)
+		[ "http_code" != "404" ] && \
+			ver_info="$(curl -skLZ --compressed ${download_url}/version.buildinfo)" || \
+			ver_info="${GITHUB_RUN_ID}"
+
+		echo "USE_${name_upper}_VERSION=${ver_info}" >> $GITHUB_ENV
+	fi
+
+	. $GITHUB_ENV
+}
+
+generate_variant "sdk" "${USE_VERSION}" "${USE_TARGET}" "${USE_KEYRING}" "${sdk_pattern}"
 [ -n "${USE_SDK_FILE}" ] || exit 1;
 
 if [ "${USE_IMAGEBUILDER}" = 'true' -a "${RUNTIME_TEST}" = "true" ]; then
-	imagebuilderfile="openwrt-imagebuilder-.*.Linux-x86_64.tar.xz"
-	grep -i "${imagebuilderfile}" sha256sums > imagebuilder.sha256sums
-	USE_IMAGEBUILDER_FILE=$(grep -io "${imagebuilderfile}" imagebuilder.sha256sums)
-
-	echo "USE_IMAGEBUILDER_FILE=${USE_IMAGEBUILDER_FILE}" >> $GITHUB_ENV
 	echo "USE_IMAGEBUILDER=${USE_IMAGEBUILDER}" >> $GITHUB_ENV
+	generate_variant "imagebuilder" "${USE_RUNTIME_TEST_VER}" "${USE_TARGET}" "${USE_RUNTIME_TEST_KEYRING}"
 	[ -n "${USE_IMAGEBUILDER_FILE}" ] || exit 1
 fi
 
@@ -61,25 +81,12 @@ else
 	echo "USE_LIBT_REFS=${LIBT_REFS}" >> $GITHUB_ENV
 fi
 
-# curl SDK info
-http_code=$(curl -fskILZ -o /dev/null -w %{http_code} --compressed ${USE_SOURCE_URL}/version.buildinfo)
-[ "http_code" != "404" ] && \
-	sdk_ver="$(curl -skLZ --compressed ${USE_SOURCE_URL}/version.buildinfo)" || \
-	sdk_ver="${GITHUB_RUN_ID}"
-
-echo "USE_OPENWRT_SRC_VERSION=${sdk_ver}" >> $GITHUB_ENV
-
 case "${USE_VERSION}" in
 *-SNAPSHOT)
-	version_label=openwrt-$(echo "${USE_VERSION}" | grep -o '[0-9]\+\.[0-9]\+')
 	HEAD=refs/heads/openwrt-${USE_VERSION%%-*}
 	;;
 snapshots)
-	version_label=SNAPSHOT
 	HEAD=HEAD
-	;;
-*)
-	version_label=v${USE_VERSION}
 	;;
 esac
 
@@ -90,9 +97,21 @@ if [ -n "$HEAD" ]; then
 		feeds_rev="${feeds_rev:+${feeds_rev}-}${repo_rev:?Empty revision for repo ${repo}}"
 	done
 else
-	feeds_rev=${sdk_ver##*-}-$(curl -skLZ --compressed ${USE_SOURCE_URL}/feeds.buildinfo | sed -n 's/.*packages\.git^\(\w\+\)/\1/p')
+	feeds_rev=${USE_SDK_VERSION##*-}-$(curl -skLZ --compressed ${USE_SDK_URL}/feeds.buildinfo | sed -n 's/.*packages\.git^\(\w\+\)/\1/p')
 fi
 echo "USE_FEEDS_REVISION=${feeds_rev:?Empty feed revisions}" >> $GITHUB_ENV
+
+case "${USE_RUNTIME_TEST_VER}" in
+*-SNAPSHOT)
+	version_label=openwrt-$(echo "${USE_RUNTIME_TEST_VER}" | grep -o '[0-9]\+\.[0-9]\+')
+	;;
+snapshots)
+	version_label=SNAPSHOT
+	;;
+*)
+	version_label=v${USE_RUNTIME_TEST_VER}
+	;;
+esac
 
 # Openwrt tag for docker image
 docker_rootfs_tag="${RUN_ON_TARGET:-${USE_TARGET}}-${version_label}"

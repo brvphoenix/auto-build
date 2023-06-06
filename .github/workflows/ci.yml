@@ -140,9 +140,9 @@ jobs:
       id: cache-sdk
       with:
         path: ./${{ env.USE_SDK_FILE }}
-        key: ${{ matrix.link }}-${{ matrix.arch }}-${{ env.USE_OPENWRT_SRC_VERSION }}
+        key: ${{ matrix.link }}-${{ matrix.arch }}-${{ env.USE_SDK_VERSION }}
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
-      run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_SOURCE_URL}/${USE_SDK_FILE}"
+      run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_SDK_URL}/${USE_SDK_FILE}"
     - run: |
         sha256sum --check --status ./auto-build/sdk.sha256sums || exit 1
         mkdir -p build
@@ -194,7 +194,7 @@ jobs:
         path: |
           ${{ env.SAVED_NAME }}
           build/logs
-        key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}', matrix.link, matrix.arch, env.USE_OPENWRT_SRC_VERSION, env.USE_LIBT_HASH, env.USE_BINARY_HASH) }}
+        key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}', matrix.link, matrix.arch, env.USE_SDK_VERSION, env.USE_LIBT_HASH, env.USE_BINARY_HASH) }}
     - name: Cache downloaded source files (exclude Qt)
       if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
       uses: actions/cache@v3
@@ -256,16 +256,16 @@ jobs:
       id: cache-rootfs-files
       with:
         path: auto-build/docker/custom/rootfs
-        key: rootfs-${{ env.USE_DOCKER_ROOTFS_TAG }}-${{ env.USE_OPENWRT_SRC_VERSION }}
+        key: rootfs-${{ env.USE_DOCKER_ROOTFS_TAG }}-${{ env.USE_IMAGEBUILDER_VERSION }}
     - name: Cache ImageBuilder
       if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true' && steps.cache-rootfs-files.outputs.cache-hit != 'true'
       uses: actions/cache@v3
       id: cache-ib
       with:
         path: ./${{ env.USE_IMAGEBUILDER_FILE }}
-        key: IB-${{ matrix.arch }}-${{ env.USE_OPENWRT_SRC_VERSION }}
+        key: IB-${{ matrix.arch }}-${{ env.USE_IMAGEBUILDER_VERSION }}
     - if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true' && steps.cache-rootfs-files.outputs.cache-hit != 'true' && steps.cache-ib.outputs.cache-hit != 'true'
-      run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_SOURCE_URL}/${USE_IMAGEBUILDER_FILE}"
+      run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_IMAGEBUILDER_URL}/${USE_IMAGEBUILDER_FILE}"
     - if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true' && steps.cache-rootfs-files.outputs.cache-hit != 'true'
       run: |
         sha256sum --check --status ./auto-build/imagebuilder.sha256sums || exit 1
@@ -275,7 +275,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ./imagebuilder/dl
-        key: IB-dl-${{ matrix.arch }}-${{ env.USE_OPENWRT_SRC_VERSION }}
+        key: IB-dl-${{ matrix.arch }}-${{ env.USE_IMAGEBUILDER_VERSION }}
     - name: Generate custom rootfs docker
       if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true' && steps.cache-rootfs-files.outputs.cache-hit != 'true'
       working-directory: ./imagebuilder
