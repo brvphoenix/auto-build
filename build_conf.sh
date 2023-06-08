@@ -42,6 +42,10 @@ echo "::endgroup::"
 # Sync openssl module
 [ "${link_type}" = "dynamic" -o -n "$(ls include/openssl-*.mk 2>/dev/null)" ] || rsync -a feeds/base/include/openssl-*.mk include
 
+for extra_script in ../auto-build/scripts/tmp/*.sh; do
+	. "${extra_script}"
+done
+
 cat > .config <<EOF
 # CONFIG_ALL_KMODS is not set
 # CONFIG_ALL is not set

@@ -62,7 +62,7 @@ PATCH_DIR=${QT_REPO_DIR}/packages/net/qbittorrent/patches
 mkdir -p ${PATCH_DIR}
 
 # Hotfixes and backport for official v4_5_x
-curl -kLZ --compressed -o ${PATCH_DIR}/0001.patch https://github.com/brvphoenix/qBittorrent/compare/release-4.5.2...stable_backup.patch
+curl -kLZ --compressed -o ${PATCH_DIR}/0001.patch https://github.com/brvphoenix/qBittorrent/compare/release-4.5.3...stable_backup.patch
 
 # # Backport
 # curl -kLZ --compressed -o ${PATCH_DIR}/0002.patch https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18727.patch
