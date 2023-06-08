@@ -151,4 +151,4 @@ if [ -d "./dl" ]; then
 	rm -rf dl/libtorrent-rasterbar-*.tar.gz
 fi
 
-rm -rf feeds/self{,tmp,.index,.targetindex}
+rm -rf feeds/local{,tmp,.index,.targetindex}

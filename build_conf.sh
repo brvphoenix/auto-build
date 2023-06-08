@@ -8,7 +8,7 @@ libt_ver=$2
 link_type=$3
 
 # Restore the modified feeds sources
-rm -rf feeds/self{,.tmp,.index,.targetindex}
+rm -rf feeds/local{,.tmp,.index,.targetindex}
 for d in feeds/*; do
 	if [ -d "$d" ] && [ -d "$d/.git" ]; then
 		cd $d;
@@ -27,15 +27,15 @@ sed \
 	-e 's,https://git\.openwrt\.org/project/,https://github.com/openwrt/,' \
 	feeds.conf.default | grep -v "^src-git-full \(routing\|telephony\) .*" > feeds.conf
 
-echo "src-link self ${GITHUB_WORKSPACE}/qt_repo" >> feeds.conf
+echo "src-cpy local ${GITHUB_WORKSPACE}/qt_repo" >> feeds.conf
 
 echo "::group::Update feeds"
 if [ "${IGNORE_UPDATE_FEEDS}" != "true" ]; then
 	# Sync with the source
-	./scripts/feeds update -f base packages luci self
+	./scripts/feeds update -f base packages luci local
 else
 	# Update custom feeds
-	./scripts/feeds update self
+	./scripts/feeds update local
 fi
 echo "::endgroup::"
 
@@ -70,7 +70,7 @@ if [ "${link_type}" = "static" ]; then
 fi
 
 echo "::group::Install packages"
-./scripts/feeds install -p self luci-app-qbittorrent
+./scripts/feeds install -p local luci-app-qbittorrent
 echo "::endgroup::"
 
 find -L package/feeds/*/{boost,libtorrent-rasterbar,luci-app-qbittorrent,openssl,pcre2,qbittorrent,qtbase,qttools,zlib} .config \

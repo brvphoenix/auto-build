@@ -188,7 +188,7 @@ jobs:
         bash ../auto-build/build_conf.sh "${{ matrix.qt }}" "${{ matrix.libtorrent }}" "${{ matrix.link }}"
     - if: env.USE_LIBT_HASH == ''
       run: |
-        echo USE_LIBT_HASH=$(sed -n 's/PKG_HASH:=\(\w\+\)/\1/gp' build/feeds/self/packages/libs/libtorrent-rasterbar/Makefile | head -c 10)" >> $GITHUB_ENV
+        echo USE_LIBT_HASH=$(sed -n 's/PKG_HASH:=\(\w\+\)/\1/gp' build/feeds/local/packages/libs/libtorrent-rasterbar/Makefile | head -c 10)" >> $GITHUB_ENV
     - name: Cache binary
       if: needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true'
       id: cache-bin
@@ -213,7 +213,7 @@ jobs:
           source-
     - if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
       run: |
-        echo "USE_QT_VER=$(sed -n '/PKG_BASE:=/{N;s/PKG_BASE:=\([0-9.]\+\)\s\+PKG_BUGFIX:=\(\w\+\)/\1.\2/gp}' build/feeds/self/packages/qt${{ matrix.qt }}/qtbase/Makefile)" >> $GITHUB_ENV
+        echo "USE_QT_VER=$(sed -n '/PKG_BASE:=/{N;s/PKG_BASE:=\([0-9.]\+\)\s\+PKG_BUGFIX:=\(\w\+\)/\1.\2/gp}' build/feeds/local/packages/qt${{ matrix.qt }}/qtbase/Makefile)" >> $GITHUB_ENV
     - name: Cache Qt source
       if: env.USE_QT_VER != ''
       uses: actions/cache@v3
