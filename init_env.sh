@@ -22,14 +22,13 @@ done
 generate_variant() {
 	local name=$1
 	local version=$2
-	local target=$3
-	local keyring=$4
+	local keyring=$3
+	local pattern=$4
 	local name_upper=$(echo $name | tr 'a-z' 'A-Z')
-	local pattern="openwrt-${name}-.*.Linux-x86_64.tar.xz"
 
 	if [ -z "$(eval echo \${USE_${name_upper}_URL})" ]; then
 		[ "${version}" = "snapshots" ] && version_path="snapshots" || version_path="releases/${version}"
-		download_url=${USE_DOWNLOAD_SERVER}/${version_path}/targets/${target//-/\/}
+		download_url=${USE_DOWNLOAD_SERVER}/${version_path}/targets/${target_name//-/\/}
 		echo "USE_${name_upper}_URL=${download_url}" >> $GITHUB_ENV
 	fi
 
@@ -47,25 +46,32 @@ generate_variant() {
 		echo "USE_${name_upper}_FILE=${fname}" >> $GITHUB_ENV
 	fi
 
-	if [ -z "$(eval echo \${USE_${name_upper}_VERSION})" ]; then
+	if [ -z "$(eval echo \${USE_${name_upper}_REVISION})" ]; then
 		http_code=$(curl -fskILZ -o /dev/null -w %{http_code} --compressed ${download_url}/version.buildinfo)
 		[ "http_code" != "404" ] && \
-			ver_info="$(curl -skLZ --compressed ${download_url}/version.buildinfo)" || \
-			ver_info="${GITHUB_RUN_ID}"
+			rev_info="$(curl -skLZ --compressed ${download_url}/version.buildinfo)" || \
+			rev_info="${GITHUB_RUN_ID}"
 
-		echo "USE_${name_upper}_VERSION=${ver_info}" >> $GITHUB_ENV
+		echo "USE_${name_upper}_REVISION=${rev_info}" >> $GITHUB_ENV
 	fi
 
 	. $GITHUB_ENV
 }
 
-generate_variant "sdk" "${USE_VERSION}" "${target_name}" "${USE_KEYRING}" "${sdk_pattern}"
-[ -n "${USE_SDK_FILE}" ] || exit 1;
+sdk_pattern="openwrt-sdk-.*.Linux-x86_64.tar.xz"
+generate_variant "sdk" "${USE_SDK_VERSION}" "${USE_SDK_KEYRING}" "${sdk_pattern}"
 
-if [ "${USE_IMAGEBUILDER}" = 'true' -a "${RUNTIME_TEST}" = "true" ]; then
+if [ "${RUNTIME_TEST}" = "true" ]; then
+	[ -n "${USE_QEMU_CPU}" ] && echo "QEMU_CPU=${USE_QEMU_CPU}" >> ${GITHUB_WORKSPACE}/docker_env || touch ${GITHUB_WORKSPACE}/docker_env
+
+	if [ "${USE_IMAGEBUILDER}" = 'true' ]; then
+		imagebuilder_pattern="openwrt-imagebuilder-.*.Linux-x86_64.tar.xz"
+		generate_variant "imagebuilder" "${USE_IMAGEBUILDER_VERSION}" "${USE_IMAGEBUILDER_KEYRING}" "${imagebuilder_pattern}"
+	else
+		rootfs_pattern="openwrt-.*${target_name}-.*rootfs.tar.gz"
+		generate_variant "rootfs" "${USE_ROOTFS_VERSION}" "${USE_ROOTFS_KEYRING}" "${rootfs_pattern}"
+	fi
 	echo "USE_IMAGEBUILDER=${USE_IMAGEBUILDER}" >> $GITHUB_ENV
-	generate_variant "imagebuilder" "${USE_RUNTIME_TEST_VER}" "${target_name}" "${USE_RUNTIME_TEST_KEYRING}"
-	[ -n "${USE_IMAGEBUILDER_FILE}" ] || exit 1
 fi
 
 # QBT source and libtorrent source info
@@ -81,9 +87,9 @@ else
 	echo "USE_LIBT_REFS=${LIBT_REFS}" >> $GITHUB_ENV
 fi
 
-case "${USE_VERSION}" in
+case "${USE_SDK_VERSION}" in
 *-SNAPSHOT)
-	HEAD=refs/heads/openwrt-${USE_VERSION%%-*}
+	HEAD=refs/heads/openwrt-${USE_SDK_VERSION%%-*}
 	;;
 snapshots)
 	HEAD=HEAD
@@ -97,35 +103,6 @@ if [ -n "$HEAD" ]; then
 		feeds_rev="${feeds_rev:+${feeds_rev}-}${repo_rev:?Empty revision for repo ${repo}}"
 	done
 else
-	feeds_rev=${USE_SDK_VERSION##*-}-$(curl -skLZ --compressed ${USE_SDK_URL}/feeds.buildinfo | sed -n 's/.*packages\.git^\(\w\+\)/\1/p')
+	feeds_rev=${USE_SDK_REVISION##*-}-$(curl -skLZ --compressed ${USE_SDK_URL}/feeds.buildinfo | sed -n 's/.*packages\.git^\(\w\+\)/\1/p')
 fi
 echo "USE_FEEDS_REVISION=${feeds_rev:?Empty feed revisions}" >> $GITHUB_ENV
-
-case "${USE_RUNTIME_TEST_VER}" in
-*-SNAPSHOT)
-	version_label=openwrt-$(echo "${USE_RUNTIME_TEST_VER}" | grep -o '[0-9]\+\.[0-9]\+')
-	;;
-snapshots)
-	version_label=SNAPSHOT
-	;;
-*)
-	version_label=v${USE_RUNTIME_TEST_VER}
-	;;
-esac
-
-# Openwrt tag for docker image
-docker_rootfs_tag="${RUN_ON_TARGET:-${target_name}}-${version_label}"
-echo "USE_DOCKER_ROOTFS_TAG=${docker_rootfs_tag}" >> $GITHUB_ENV
-
-# Get the docker image hash
-if [ "${RUNTIME_TEST}" = "true" ]; then
-	[ -n "${USE_QEMU_CPU}" ] && echo "QEMU_CPU=${USE_QEMU_CPU}" >> ${GITHUB_WORKSPACE}/docker_env || touch ${GITHUB_WORKSPACE}/docker_env
-
-	if [ "${USE_IMAGEBUILDER}" != 'true' ]; then
-		# openwrt/rootfs
-		token=$(curl -skL "https://ghcr.io/token?scope=repository:openwrt/rootfs:pull&service=ghcr.io" | jq -r '.token')
-		curl -fskILZ -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-			-H "Authorization: Bearer ${token}" "https://ghcr.io/v2/openwrt/rootfs/manifests/${docker_rootfs_tag}" \
-			| sed -n 's/docker-content-digest:\s\+sha256:\(\w\+\)/\1/gp' | xargs -i echo "USE_ROOTFS_HASH={}" >> $GITHUB_ENV || exit 1
-	fi
-fi

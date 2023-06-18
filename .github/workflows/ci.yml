@@ -143,7 +143,7 @@ jobs:
       id: cache-sdk
       with:
         path: ./${{ env.USE_SDK_FILE }}
-        key: ${{ matrix.link }}-${{ matrix.target }}-${{ env.USE_SDK_VERSION }}
+        key: ${{ matrix.link }}-${{ matrix.target }}-${{ env.USE_SDK_REVISION }}
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
       run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_SDK_URL}/${USE_SDK_FILE}"
     - run: |
@@ -197,7 +197,7 @@ jobs:
         path: |
           qbittorrent_${{ matrix.target }}
           build/logs
-        key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}', matrix.link, matrix.target, env.USE_SDK_VERSION, env.USE_LIBT_HASH, env.USE_BINARY_HASH) }}
+        key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}', matrix.link, matrix.target, env.USE_SDK_REVISION, env.USE_LIBT_HASH, env.USE_BINARY_HASH) }}
     - name: Cache downloaded source files (exclude Qt)
       if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
       uses: actions/cache@v3
@@ -254,33 +254,30 @@ jobs:
         name: ${{ matrix.target }}-${{ matrix.link }}-qt${{ matrix.qt }}-libtorrent_${{ matrix.libtorrent }}-logs_${{ github.run_attempt }}
         path: ${{ env.SAVED_NAME }}.logs.tar.xz
     - name: Cache Custom rootfs
-      if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true'
+      if: matrix.runtime_test
       uses: actions/cache@v3
       id: cache-rootfs-files
       with:
         path: auto-build/docker/custom/rootfs
-        key: rootfs-${{ env.USE_DOCKER_ROOTFS_TAG }}-${{ env.USE_IMAGEBUILDER_VERSION }}
+        key: rootfs-${{ matrix.target }}-${{ env.USE_IMAGEBUILDER_REVISION }}${{ env.USE_ROOTFS_REVISION }}
     - name: Cache ImageBuilder
-      if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true' && steps.cache-rootfs-files.outputs.cache-hit != 'true'
+      if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER == 'true'
       uses: actions/cache@v3
       id: cache-ib
       with:
-        path: ./${{ env.USE_IMAGEBUILDER_FILE }}
-        key: IB-${{ matrix.target }}-${{ env.USE_IMAGEBUILDER_VERSION }}
-    - if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true' && steps.cache-rootfs-files.outputs.cache-hit != 'true' && steps.cache-ib.outputs.cache-hit != 'true'
+        path: |
+          ${{ env.USE_IMAGEBUILDER_FILE }}
+          imagebuilder/dl
+        key: IB-${{ matrix.target }}-${{ env.USE_IMAGEBUILDER_REVISION }}
+    - if: steps.cache-ib.outcome == 'success' && steps.cache-ib.outputs.cache-hit != 'true'
       run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_IMAGEBUILDER_URL}/${USE_IMAGEBUILDER_FILE}"
-    - if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true' && steps.cache-rootfs-files.outputs.cache-hit != 'true'
+    - if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER == 'true'
       run: |
         sha256sum --check --status ./auto-build/imagebuilder.sha256sums || exit 1
         mkdir -p imagebuilder
         XZ_OPT='-T0' tar -xJf "${USE_IMAGEBUILDER_FILE}" --strip-components=1 -C imagebuilder
-    - if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true' && steps.cache-rootfs-files.outputs.cache-hit != 'true'
-      uses: actions/cache@v3
-      with:
-        path: ./imagebuilder/dl
-        key: IB-dl-${{ matrix.target }}-${{ env.USE_IMAGEBUILDER_VERSION }}
     - name: Generate custom rootfs docker
-      if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true' && steps.cache-rootfs-files.outputs.cache-hit != 'true'
+      if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER == 'true'
       working-directory: ./imagebuilder
       run: |
         mkdir -p tmp
@@ -296,30 +293,16 @@ jobs:
         DEVICE_TYPE=basic make image PROFILE=${profile} PACKAGES="${pkgs}"
         echo "::endgroup::"
         find build_dir/target-* -mindepth 1 -maxdepth 1 -type d -iname "root-*" | xargs -i mv {} ../auto-build/docker/custom/rootfs
+    - if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER != 'true'
+      run: |
+        curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_ROOTFS_URL}/${USE_ROOTFS_FILE}"
+        sha256sum --check --status ./auto-build/rootfs.sha256sums || exit 1
+        mkdir -p ./auto-build/docker/custom/rootfs
+        XZ_OPT='-T0' tar -xf "${USE_ROOTFS_FILE}" --strip-components=1 -C ./auto-build/docker/custom/rootfs
     - name: Build Custom Docker Container
-      if: matrix.runtime_test && env.USE_IMAGEBUILDER == 'true'
+      if: matrix.runtime_test
       run: |
-        cp ./auto-build/docker/rootfs/entrypoint.sh ./auto-build/docker/custom
         docker build -t test-container ./auto-build/docker/custom
-    - name: Cache docker openwrt/rootfs
-      if: matrix.runtime_test && env.USE_IMAGEBUILDER != 'true'
-      id: cache-rootfs-docker
-      uses: actions/cache@v3
-      with:
-        path: ~/docker_images/openwrt_rootfs.tar
-        key: docker-${{ env.USE_DOCKER_ROOTFS_TAG }}-${{ env.USE_ROOTFS_HASH }}
-    - if: steps.cache-rootfs-docker.outputs.cache-hit == 'true'
-      run: |
-        docker load -i ~/docker_images/openwrt_rootfs.tar
-    - name: Build Docker Container
-      id: build-docker
-      if: matrix.runtime_test && env.USE_IMAGEBUILDER != 'true'
-      run: |
-        docker build -t test-container --build-arg TAG="${USE_DOCKER_ROOTFS_TAG}" ./auto-build/docker/rootfs
-    - if: steps.build-docker.outcome == 'success' && steps.cache-rootfs-docker.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p ~/docker_images
-        docker save -o ~/docker_images/openwrt_rootfs.tar ghcr.io/openwrt/rootfs:${USE_DOCKER_ROOTFS_TAG}
     - name: Register QEMU
       if: matrix.runtime_test
       run: |
