@@ -113,7 +113,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        while [ "$(gh release list | cut -f 3 | grep '^'${GITHUB_REF_NAME}'$' | wc -l)" -ne 0 ]; do gh release delete "${GITHUB_REF_NAME}" -y; done
+        while [ "$(gh release list | cut -f 3 | grep -c '^'${GITHUB_REF_NAME}'$')" -ne 0 ]; do gh release delete "${GITHUB_REF_NAME}" -y; done
         gh release create -d --verify-tag --generate-notes -t "Release ${GITHUB_REF_NAME}" "${GITHUB_REF_NAME}"
   build-matrix:
     name: ${{ matrix.link }}, ${{ matrix.target }}, qt${{ matrix.qt }}, libtorrent_${{ matrix.libtorrent }}
@@ -318,7 +318,7 @@ jobs:
         cd qemu
 
         qus_ver=$(curl -fskLZ --compressed --fail-early \
-        	https://metadata.ftp-master.debian.org/changelogs/main/q/qemu/experimental_changelog 2>&1 \
+        	https://metadata.ftp-master.debian.org/changelogs/main/q/qemu/stable_changelog 2>&1 \
         	| head -n 1 | sed -n 's,qemu (\([0-9]:\)\?\(\S\+\)).*,\2,gp')
         curl -fkLOZ --compressed --connect-timeout 10 --retry 5 http://ftp.debian.org/debian/pool/main/q/qemu/qemu-user-static_${qus_ver}_amd64.deb
         dpkg -x "qemu-user-static_${qus_ver}_amd64.deb" "$(pwd)/qus"
@@ -422,9 +422,9 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        touch sha256sum
+        > sha256sums
         for sha256sum in hash/*.sha256sum; do
-        	cat $sha256sum >> sha256sum
+        	[ ! -f "${sha256sum}" ] || cat $sha256sum >> sha256sums
         done
-        gh release upload "${GITHUB_REF_NAME}" sha256sum --clobber
+        gh release upload "${GITHUB_REF_NAME}" sha256sums --clobber
         gh release edit "${GITHUB_REF_NAME}" --draft=false --prerelease

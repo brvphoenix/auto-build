@@ -10,13 +10,11 @@ link_type=$3
 # Restore the modified feeds sources
 rm -rf feeds/local{,.tmp,.index,.targetindex}
 for d in feeds/*; do
-	if [ -d "$d" ] && [ -d "$d/.git" ]; then
-		cd $d;
-		if $(git status >> /dev/null 2>&1); then
-			git checkout .;
-			git clean -df;
+	if [ -d "$d" -a -d "$d/.git" ]; then
+		if $(git -C "$d" status >> /dev/null 2>&1); then
+			git -C "$d" checkout .;
+			git -C "$d" clean -dfx;
 		fi
-		cd -
 	fi
 done
 
@@ -25,7 +23,7 @@ sed \
 	-e 's,https://git\.openwrt\.org/feed/,https://github.com/openwrt/,' \
 	-e 's,https://git\.openwrt\.org/openwrt/,https://github.com/openwrt/,' \
 	-e 's,https://git\.openwrt\.org/project/,https://github.com/openwrt/,' \
-	feeds.conf.default | grep -v "^src-git-full \(routing\|telephony\) .*" > feeds.conf
+	feeds.conf.default | grep -Ev "^src-git(-full)? (routing|telephony) .*" > feeds.conf
 
 echo "src-cpy local ${GITHUB_WORKSPACE}/qt_repo" >> feeds.conf
 
@@ -43,7 +41,7 @@ echo "::endgroup::"
 [ "${link_type}" = "dynamic" -o -n "$(ls include/openssl-*.mk 2>/dev/null)" ] || rsync -a feeds/base/include/openssl-*.mk include
 
 for extra_script in ../auto-build/scripts/tmp/*.sh; do
-	. "${extra_script}"
+	[ ! -f "${extra_script}" ] || . "${extra_script}"
 done
 
 cat > .config <<EOF
