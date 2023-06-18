@@ -47,7 +47,7 @@
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "cortex-a15"
 		},
-		"armvirt-64": {
+		"mvebu-cortexa53": {
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "cortex-a53"
 		},

@@ -43,11 +43,13 @@
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "cortex-a9"
 		},
-		"armvirt-32": {
+		"armsr-armv7": {
 			"RUNTIME_TEST": true,
+			"USE_ROOTFS_VERSION": "23.05-SNAPSHOT",
+			"USE_ROOTFS_KEYRING": "626471F1.asc",
 			"USE_QEMU_CPU": "cortex-a15"
 		},
-		"armvirt-64": {
+		"mvebu-cortexa53": {
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "cortex-a53"
 		},
