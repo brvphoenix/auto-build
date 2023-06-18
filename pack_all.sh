@@ -85,6 +85,7 @@ sed 's/^    //g' > ${SAVE_ROOT_DIR}/install.sh <<-"EOF"
 
     case "$1" in
     	install)
+    		shift
     		cp ${script_dir}/key/$fingerprint /etc/opkg/keys
     		sed -i "\$asrc\/gz openwrt_qbt file:\/\/$(echo ${script_dir}/pkgs | sed 's/\//\\\//g')" /etc/opkg/customfeeds.conf
 
@@ -96,9 +97,8 @@ sed 's/^    //g' > ${SAVE_ROOT_DIR}/install.sh <<-"EOF"
     		cp ${script_dir}/pkgs/Packages.gz /var/opkg-lists/openwrt_qbt
     		cp ${script_dir}/pkgs/Packages.sig /var/opkg-lists/openwrt_qbt.sig
 
-    		opkg install qbittorrent
-    		opkg install luci-app-qbittorrent
-    		opkg install luci-i18n-qbittorrent-zh-cn
+    		[ -n "$@" ] || set -- qbittorrent luci-app-qbittorrent luci-i18n-qbittorrent-zh-cn
+    		opkg install $@
     		sed -i "/src\/gz openwrt_qbt file:\/\/$(echo ${script_dir}/pkgs | sed 's/\//\\\//g')/d" /etc/opkg/customfeeds.conf
     		rm -rf /etc/opkg/keys/$fingerprint
     	;;

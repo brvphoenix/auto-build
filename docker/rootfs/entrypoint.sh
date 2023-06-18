@@ -1,7 +1,7 @@
 #!/bin/sh
 
 mkdir -p /var/lock
-sh /ci/install.sh install
+sh /ci/install.sh install qbittorrent
 
 cat /etc/banner
 
