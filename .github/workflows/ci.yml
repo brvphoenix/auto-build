@@ -92,7 +92,7 @@ jobs:
         	matrix=$(jq -c --argjson mt "${matrix}" --arg lt "${inputs_lt/./_}" --arg qt "${inputs_qt}" --arg target "${inputs_target}" --arg link "${link}" '
         		foreach (.openwrt | (if (.RUN_SKIP? // false) then [] else . end) | to_entries | map(select((.value | type) == "object"))) as $item (
         			[{
-        				libtorrent: .qbittorrent.LIBTORRENT_VERSION? | to_entries[]? | .key? | select($lt == "" or $lt == "all" or $lt == .),
+        				lt: .qbittorrent.LIBTORRENT_VERSION? | to_entries[]? | .key? | select($lt == "" or $lt == "all" or $lt == .),
         				qt: .qbittorrent.QT_VERSION? | to_entries[]? | .key? | select($qt == "" or $qt == "all" or $qt == .),
         				link: $link,
         				target: .openwrt | to_entries[] | select((.value | type) == "object" and (.value?.RUN_SKIP? // false) != true) | .key | (
@@ -116,7 +116,7 @@ jobs:
         while [ "$(gh release list | cut -f 3 | grep -c '^'${GITHUB_REF_NAME}'$')" -ne 0 ]; do gh release delete "${GITHUB_REF_NAME}" -y; done
         gh release create -d --verify-tag --generate-notes -t "Release ${GITHUB_REF_NAME}" "${GITHUB_REF_NAME}"
   build-matrix:
-    name: ${{ matrix.link }}, ${{ matrix.target }}, qt${{ matrix.qt }}, libtorrent_${{ matrix.libtorrent }}
+    name: ${{ matrix.link }}, ${{ matrix.target }}, qt${{ matrix.qt }}, lt_${{ matrix.lt }}
     needs: build-prep
     runs-on: ubuntu-latest
     strategy:
@@ -137,7 +137,7 @@ jobs:
     - name: Initializing
       working-directory: ./auto-build
       run: |
-        bash ./init_env.sh "${{ matrix.target }}" "${{ matrix.link }}" "${{ matrix.qt }}" "${{ matrix.libtorrent }}"
+        bash ./init_env.sh "${{ matrix.target }}" "${{ matrix.link }}" "${{ matrix.qt }}" "${{ matrix.lt }}"
     - name: Cache SDK
       uses: actions/cache@v3
       id: cache-sdk
@@ -179,13 +179,13 @@ jobs:
         path: libt_repo
     - name: Prepare modified packages
       run: |
-        bash ./auto-build/build_pre.sh "${{ matrix.qt }}" "${{ matrix.libtorrent }}" "${{ matrix.link }}"
+        bash ./auto-build/build_pre.sh "${{ matrix.qt }}" "${{ matrix.lt }}" "${{ matrix.link }}"
     - name: Prepare building
       env:
         IGNORE_UPDATE_FEEDS: ${{ steps.cache-feeds.outputs.cache-hit }}
       working-directory: ./build
       run: |
-        bash ../auto-build/build_conf.sh "${{ matrix.qt }}" "${{ matrix.libtorrent }}" "${{ matrix.link }}"
+        bash ../auto-build/build_conf.sh "${{ matrix.qt }}" "${{ matrix.lt }}" "${{ matrix.link }}"
     - if: env.USE_LIBT_HASH == ''
       run: |
         echo USE_LIBT_HASH=$(sed -n 's/PKG_HASH:=\(\w\+\)/\1/gp' build/feeds/local/packages/libs/libtorrent-rasterbar/Makefile | head -c 10)" >> $GITHUB_ENV
@@ -234,12 +234,12 @@ jobs:
       env:
         CACHE_HIT: ${{ steps.cache-bin.outputs.cache-hit }}
       run: |
-        bash ./auto-build/pack_all.sh "${{ matrix.target }}" "${{ matrix.link }}" "${{ matrix.qt }}" "${{ matrix.libtorrent }}"
+        bash ./auto-build/pack_all.sh "${{ matrix.target }}" "${{ matrix.link }}" "${{ matrix.qt }}" "${{ matrix.lt }}"
     - name: Upload Pkgs
       if: needs.build-prep.outputs.draft != 'success' && steps.pack-all.outputs.pkgs == 'true'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ matrix.target }}-${{ matrix.link }}-qt${{ matrix.qt }}-libtorrent_${{ matrix.libtorrent }}-pkgs_${{ github.run_attempt }}
+        name: ${{ matrix.target }}-${{ matrix.link }}-qt${{ matrix.qt }}-lt_${{ matrix.lt }}-pkgs_${{ github.run_attempt }}
         path: ${{ env.SAVED_NAME }}.tar.xz
     - name: Upload sha256sums
       if: steps.pack-all.outputs.pkgs == 'true'
@@ -251,7 +251,7 @@ jobs:
       if: (success() || failure()) && steps.pack-all.outputs.logs == 'true'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ matrix.target }}-${{ matrix.link }}-qt${{ matrix.qt }}-libtorrent_${{ matrix.libtorrent }}-logs_${{ github.run_attempt }}
+        name: ${{ matrix.target }}-${{ matrix.link }}-qt${{ matrix.qt }}-lt_${{ matrix.lt }}-logs_${{ github.run_attempt }}
         path: ${{ env.SAVED_NAME }}.logs.tar.xz
     - name: Cache Custom rootfs
       if: matrix.runtime_test
