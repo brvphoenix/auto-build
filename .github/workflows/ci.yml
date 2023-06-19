@@ -25,6 +25,7 @@ on:
         default: 'all'
         type: choice
         options:
+        - x86
         - malta
         - ramips
         - bcm53xx
@@ -363,6 +364,9 @@ jobs:
         printf "Startup delay: %ss\n" $((200 + $(date +%s) - ${end_time}))
 
         if [ -n "$(docker ps -f id=${docker_id} -f status=running -q)" ]; then
+        	echo "::group::Process list"
+        	docker exec ${docker_id} sh -c 'top -b -n 1'
+        	echo "::endgroup::"
         	if [ -n "$sid" ]; then
         		echo "::group::qBittorrent info"
         		echo "-------------------------------------------"
@@ -426,5 +430,6 @@ jobs:
         for sha256sum in hash/*.sha256sum; do
         	[ ! -f "${sha256sum}" ] || cat $sha256sum >> sha256sums
         done
-        gh release upload "${GITHUB_REF_NAME}" sha256sums --clobber
+        gzip sha256sums
+        gh release upload "${GITHUB_REF_NAME}" sha256sums.gz --clobber
         gh release edit "${GITHUB_REF_NAME}" --draft=false --prerelease
