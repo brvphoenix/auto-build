@@ -2,9 +2,9 @@
 [![check](https://github.com/brvphoenix/auto-build/workflows/CI/badge.svg?branch=master)](https://github.com/brvphoenix/auto-build/actions)
 [![GitHub All Releases](https://img.shields.io/github/downloads/brvphoenix/auto-build/total)](https://github.com/brvphoenix/auto-build/releases)
 [![GitHub Latest Releases](https://img.shields.io/github/downloads-pre/brvphoenix/auto-build/latest/total)](https://github.com/brvphoenix/auto-build/releases)
-[![Lastest Release](https://img.shields.io/github/release/brvphoenix/auto-build.svg?style=flat)](https://github.com/brvphoenix/auto-build/releases)
+[![Lastest Release](https://img.shields.io/github/v/release/brvphoenix/auto-build.svg?include_prereleases)](https://github.com/brvphoenix/auto-build/releases)
 
-# Version 4.5.3-2
+# Version 4.5.4-1
 [ChangeLog](https://github.com/qbittorrent/qBittorrent/blob/v4_5_x/Changelog)
 
 # Depends (dynamic / static)
