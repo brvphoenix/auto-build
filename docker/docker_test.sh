@@ -82,7 +82,8 @@ if [ -n "$(docker ps -f id=${docker_id} -f status=running -q)" ]; then
 		echo "::group::qBittorrent logs"
 		curl -s -m 10 -H "Host: ${webui_url}" --cookie "SID=${sid}" ${req_url}/api/v2/log/main?last_known_id=-1 | jq -r '.[] | "\(.timestamp | todate) \(.message)"'
 		echo "::endgroup::"
-		curl -s -m 10 -X POST -H "Host: ${webui_url}" --cookie "SID=${sid}" ${req_url}/api/v2/app/shutdown
+		#curl -s -m 10 -X POST -H "Host: ${webui_url}" --cookie "SID=${sid}" ${req_url}/api/v2/app/shutdown
+		docker exec $docker_id sh -c 'kill -15 $(pidof qbittorrent-nox)'
 		end_time=$(($(date +%s) + 100))
 		while [ "${end_time}" -gt "$(date +%s)" ]; do
 			[ -n "$(docker ps -f id=${docker_id} -f status=running -q)" ] && sleep 1 || { err_code=0; break; }
