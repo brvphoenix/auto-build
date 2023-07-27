@@ -40,18 +40,11 @@ generate_variant() {
 	gpg --import "${keyring}"
 	gpg --with-fingerprint --verify ${version}.sha256sums.asc ${version}.sha256sums
 
-	if [ -z "$(eval echo \${USE_${name_upper}_FILE})" ]; then
+	if [ -z "$(eval echo \${USE_${name_upper}_FILE})" -o -z "$(eval echo \${USE_${name_upper}_REVISION})" ]; then
 		grep -i "${pattern}" ${version}.sha256sums > "${name}.sha256sums"
 		fname=$(grep -io "${pattern}" "${name}.sha256sums")
+		rev_info=$(grep -ioE "^\w+" "${name}.sha256sums" | head -c 10)
 		echo "USE_${name_upper}_FILE=${fname}" >> $GITHUB_ENV
-	fi
-
-	if [ -z "$(eval echo \${USE_${name_upper}_REVISION})" ]; then
-		http_code=$(curl -fskILZ -o /dev/null -w %{http_code} --compressed ${download_url}/version.buildinfo)
-		[ "http_code" != "404" ] && \
-			rev_info="$(curl -skLZ --compressed ${download_url}/version.buildinfo)" || \
-			rev_info="${GITHUB_RUN_ID}"
-
 		echo "USE_${name_upper}_REVISION=${rev_info}" >> $GITHUB_ENV
 	fi
 
