@@ -13,4 +13,4 @@ echo "Architecture: $(uname -m)"
 echo "-------------------------------------------"
 
 mkdir -p /tmp/qbittorrent
-qbittorrent-nox --profile=/tmp/qbittorrent
+QT_FATAL_WARNINGS=1 qbittorrent-nox --profile=/tmp/qbittorrent
