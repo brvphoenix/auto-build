@@ -1,5 +1,5 @@
 # qBittorrent
-[![check](https://github.com/brvphoenix/auto-build/actions/workflows/ci.yml/badge.svg?event=push)](https://github.com/brvphoenix/auto-build/actions)
+[![check](https://github.com/brvphoenix/auto-build/actions/workflows/ci.yml/badge.svg?branch=tmp&event=workflow_dispatch)](https://github.com/brvphoenix/auto-build/actions)
 [![GitHub All Releases](https://img.shields.io/github/downloads/brvphoenix/auto-build/total)](https://github.com/brvphoenix/auto-build/releases)
 [![GitHub Latest Releases](https://img.shields.io/github/downloads/brvphoenix/auto-build/latest/total)](https://github.com/brvphoenix/auto-build/releases/latest)
 [![Lastest Release](https://img.shields.io/github/v/release/brvphoenix/auto-build.svg?logo=github&cacheSeconds=10&label=latest)](https://github.com/brvphoenix/auto-build/releases/latest)
