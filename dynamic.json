@@ -6,15 +6,13 @@
 		},
 		"QT_VERSION": {
 			"5": "qt5-backport",
-			"6": "perf"
+			"6": "master"
 		}
 	},
 	"openwrt": {
 		"USE_DOWNLOAD_SERVER": "https://downloads.openwrt.org",
 		"USE_SDK_VERSION": "22.03-SNAPSHOT",
 		"USE_SDK_KEYRING": "CD54E82DADB3684D.asc",
-		"USE_IMAGEBUILDER_VERSION": "22.03-SNAPSHOT",
-		"USE_IMAGEBUILDER_KEYRING": "CD54E82DADB3684D.asc",
 		"USE_ROOTFS_VERSION": "22.03-SNAPSHOT",
 		"USE_ROOTFS_KEYRING": "CD54E82DADB3684D.asc",
 		"x86-64": {

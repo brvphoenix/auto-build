@@ -59,7 +59,7 @@ if [ "${RUNTIME_TEST}" = "true" ]; then
 
 	if [ "${USE_IMAGEBUILDER}" = 'true' ]; then
 		imagebuilder_pattern="openwrt-imagebuilder-.*.Linux-x86_64.tar.xz"
-		generate_variant "imagebuilder" "${USE_IMAGEBUILDER_VERSION}" "${USE_IMAGEBUILDER_KEYRING}" "${imagebuilder_pattern}"
+		generate_variant "imagebuilder" "${USE_ROOTFS_VERSION}" "${USE_ROOTFS_KEYRING}" "${imagebuilder_pattern}"
 	else
 		rootfs_pattern="openwrt-.*${target_name}-.*rootfs.tar.gz"
 		generate_variant "rootfs" "${USE_ROOTFS_VERSION}" "${USE_ROOTFS_KEYRING}" "${rootfs_pattern}"
