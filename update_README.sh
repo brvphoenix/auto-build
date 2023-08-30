@@ -13,13 +13,20 @@ for ver in RC_1_2 RC_2_0; do
 	sed -i 's;\['$ver'@\w\{9\}\]\(('$GITHUB_SERVER_URL'/arvidn/libtorrent/commits/'$ver'?before\)=\w\{40\}\(+35&branch='$ver')\);['$ver'@'$hash_9']\1='$hash_full'\2;g' ./README.md
 done
 
-boost_static_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/packages/master/libs/boost/Makefile | sed -n 's/PKG_VERSION:=\(\S\+\)/\1/gp')
-openssl_static_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/openwrt/main/package/libs/openssl/Makefile | sed -n 's/PKG_VERSION:=\(\S\+\)/\1/gp')
-zlib_static_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/openwrt/main/package/libs/zlib/Makefile | sed -n 's/PKG_VERSION:=\(\S\+\)/\1/gp')
+for link in static dynamic; do
+	for pkg in boost openssl zlib; do
+		_ver=$(find rsync -iwholename "rsync/${link}/*${pkg}/Makefile" -exec sed -n 's/PKG_VERSION:=\(\S\+\)/\1/gp' {} \;)
+		eval "${pkg}_${link}_ver=${_ver}"
+	done
+done
 
-boost_dynamic_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/packages/openwrt-22.03/libs/boost/Makefile | sed -n 's/PKG_VERSION:=\(\S\+\)/\1/gp')
-openssl_dynamic_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/openwrt/openwrt-22.03/package/libs/openssl/Makefile | sed -n -e 's/PKG_BASE:=\(\S\+\).*/\1/gp' -e 's/PKG_BUGFIX:=\(\S\+\).*/\1/gp' | xargs echo | sed 's/\s\+//g')
-zlib_dynamic_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/openwrt/openwrt-22.03/package/libs/zlib/Makefile | sed -n 's/PKG_VERSION:=\(\S\+\)/\1/gp')
+[ -n "${boost_static_ver}" ] || boost_static_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/packages/master/libs/boost/Makefile | sed -n 's/PKG_VERSION:=\(\S\+\)/\1/gp')
+[ -n "${openssl_static_ver}" ] || openssl_static_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/openwrt/main/package/libs/openssl/Makefile | sed -n 's/PKG_VERSION:=\(\S\+\)/\1/gp')
+[ -n "${zlib_static_ver}" ] || zlib_static_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/openwrt/main/package/libs/zlib/Makefile | sed -n 's/PKG_VERSION:=\(\S\+\)/\1/gp')
+
+[ -n "${boost_dynamic_ver}" ] || boost_dynamic_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/packages/openwrt-22.03/libs/boost/Makefile | sed -n 's/PKG_VERSION:=\(\S\+\)/\1/gp')
+[ -n "${openssl_dynamic_ver}" ] || openssl_dynamic_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/openwrt/openwrt-22.03/package/libs/openssl/Makefile | sed -n -e 's/PKG_BASE:=\(\S\+\).*/\1/gp' -e 's/PKG_BUGFIX:=\(\S\+\).*/\1/gp' | xargs echo | sed 's/\s\+//g')
+[ -n "${zlib_dynamic_ver}" ] || zlib_dynamic_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/openwrt/openwrt-22.03/package/libs/zlib/Makefile | sed -n 's/PKG_VERSION:=\(\S\+\)/\1/gp')
 
 
 sed -i -e 's/\(# Version\) \S\+$/\1 '$VERSION'/g' \
@@ -28,3 +35,5 @@ sed -i -e 's/\(# Version\) \S\+$/\1 '$VERSION'/g' \
 	-e 's/\* openssl.*/* openssl '$openssl_dynamic_ver' \/ '$openssl_static_ver'/g' \
 	-e 's/\* zlib.*/* zlib '$zlib_dynamic_ver' \/ '$zlib_static_ver'/g' \
 	./README.md
+
+sed -i 's/release-[0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}/release-'${VERSION%%-*}'/' build_pre.sh
