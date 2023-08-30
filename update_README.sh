@@ -28,8 +28,7 @@ done
 [ -n "${openssl_dynamic_ver}" ] || openssl_dynamic_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/openwrt/openwrt-22.03/package/libs/openssl/Makefile | sed -n -e 's/PKG_BASE:=\(\S\+\).*/\1/gp' -e 's/PKG_BUGFIX:=\(\S\+\).*/\1/gp' | xargs echo | sed 's/\s\+//g')
 [ -n "${zlib_dynamic_ver}" ] || zlib_dynamic_ver=$(curl -fskLZ https://raw.githubusercontent.com/openwrt/openwrt/openwrt-22.03/package/libs/zlib/Makefile | sed -n 's/PKG_VERSION:=\(\S\+\)/\1/gp')
 
-
-sed -i -e 's/\(# Version\) \S\+$/\1 '$VERSION'/g' \
+sed -i -e "s/\(# Last updated time:\) .*\$/\1 $(date -u "+%F %T %z")/g" \
 	-e '/\[ChangeLog\]/ s/\/blob\/v[0-9]\+_[0-9]\+_x\//\/blob\/v'$BRANCH'\//g' \
 	-e 's/\* Boost.*/* Boost '$boost_dynamic_ver' \/ '$boost_static_ver'/g' \
 	-e 's/\* openssl.*/* openssl '$openssl_dynamic_ver' \/ '$openssl_static_ver'/g' \
