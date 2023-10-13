@@ -67,7 +67,7 @@ jobs:
     runs-on: windows-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Cache DL
       uses: actions/cache@v3
       with:
@@ -106,7 +106,7 @@ jobs:
       draft: ${{ steps.create-draft.outcome }}
     steps:
     - name: Clone Current Repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Install Dependencies
       run: |
         [ -n "$(command -v jq)" ] || {
@@ -156,7 +156,7 @@ jobs:
       matrix: ${{ fromJson(needs.build-prep.outputs.matrix) }}
     steps:
     - name: Clone Current Repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         path: auto-build
         persist-credentials: false
@@ -195,7 +195,7 @@ jobs:
           feeds-${{ matrix.link }}-
           feeds-
     - name: Clone qbt
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         ref: ${{ env.USE_QBT_REFS }}
         repository: ${{ github.repository_owner }}/SomePackages
@@ -204,7 +204,7 @@ jobs:
         path: qt_repo
     - name: Clone libt
       if: env.USE_LIBT_LOCAL != 'true'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         ref: ${{ env.USE_LIBT_REFS }}
         repository: ${{ github.repository_owner }}/SomePackages
@@ -416,7 +416,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Clone Current Repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Edit Release Status
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
