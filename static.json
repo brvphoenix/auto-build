@@ -2,7 +2,7 @@
 	"qbittorrent": {
 		"LIBTORRENT_VERSION": {
 			"1_2": "libt-1_2",
-			"2_0": "test"
+			"2_0": "master"
 		},
 		"QT_VERSION": {
 			"5": "qt5-backport",
