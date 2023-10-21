@@ -4,7 +4,7 @@
 [![GitHub Latest Releases](https://img.shields.io/github/downloads/brvphoenix/auto-build/latest/total)](https://github.com/brvphoenix/auto-build/releases/latest)
 [![Lastest Release](https://img.shields.io/github/v/release/brvphoenix/auto-build.svg?logo=github&cacheSeconds=10&label=latest)](https://github.com/brvphoenix/auto-build/releases/latest)
 
-## Last updated time: 2023-10-13 13:43:04 +0000
+## Last updated time: 2023-10-21 07:35:36 +0000
 [ChangeLog](https://github.com/qbittorrent/qBittorrent/blob/v4_5_x/Changelog)
 
 ## Depends (dynamic / static)
