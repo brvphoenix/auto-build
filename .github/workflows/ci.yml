@@ -67,8 +67,10 @@ jobs:
   build-prep:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
       draft: ${{ steps.create-draft.outcome }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      pkg: ${{ steps.set-matrix.outputs.pkg }}
+      target: ${{ steps.set-matrix.outputs.target }}
     steps:
     - uses: actions/checkout@v4
 
@@ -98,9 +100,108 @@ jobs:
         while [ "$(gh release list | cut -f 3 | grep -c '^'${GITHUB_REF_NAME}'$')" -ne 0 ]; do gh release delete "${GITHUB_REF_NAME}" -y; done
         gh release create -d --verify-tag --generate-notes -t "Release ${GITHUB_REF_NAME}" "${GITHUB_REF_NAME}"
 
+  download-sdk:
+    name: ${{ matrix.link }}, ${{ matrix.target }}
+    needs: build-prep
+    env:
+      CUR_LINK_TYPE: ${{ matrix.link }}
+      CUR_TARGET_NAME: ${{ matrix.target }}
+      CUR_SDK_VERSION: ${{ matrix.USE_SDK_VERSION }}
+      CUR_SDK_KEYRING: ${{ matrix.USE_SDK_KEYRING }}
+      CUR_ROOTFS_VERSION: ${{ matrix.USE_ROOTFS_VERSION }}
+      CUR_ROOTFS_KEYRING: ${{ matrix.USE_ROOTFS_KEYRING }}
+      CUR_USE_IMAGEBUILDER: ${{ matrix.USE_IMAGEBUILDER }}
+      CUR_RUNTIME_TEST: ${{ matrix.RUNTIME_TEST }}
+      CUR_REPO_NAME: auto-build
+      CUR_IB_DIR_NAME: imagebuilder
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.build-prep.outputs.target) }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        path: ${{ env.CUR_REPO_NAME }}
+        persist-credentials: false
+
+    - name: Install Dependencies
+      run: |
+        [ -n "$(command -v curl)" -a -n "$(command -v jq)" ] || {
+          sudo apt-get update
+          sudo apt-get -y install curl jq
+        }
+
+    - name: Initializing
+      working-directory: ./${{ env.CUR_REPO_NAME }}
+      run: |
+        bash ./scripts/init_env_stage1.sh
+
+    - name: Restore SDK
+      if: matrix.sdk
+      uses: actions/cache/restore@v4
+      id: cache-sdk
+      with:
+        path: ${{ env.CHCHE_SDK_PATH }}
+        key: ${{ env.CHCHE_SDK_KEY }}
+        lookup-only: true
+
+    - if: matrix.sdk && steps.cache-sdk.outputs.cache-hit != 'true'
+      run: |
+        curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_SDK_URL}/${USE_SDK_FILE}"
+        sha256sum --check --status ./${CUR_REPO_NAME}/sdk.sha256sums || exit 1
+
+    - name: Save SDK
+      if: matrix.sdk && steps.cache-sdk.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ env.CHCHE_SDK_PATH }}
+        key: ${{ env.CHCHE_SDK_KEY }}
+
+    - name: Restore Custom rootfs
+      if: matrix.rootfs && env.CUR_RUNTIME_TEST
+      uses: actions/cache/restore@v4
+      id: cache-rootfs-files
+      with:
+        path: ${{ env.CHCHE_ROOTFS_PATH }}
+        key: ${{ env.CHCHE_ROOTFS_KEY }}
+        lookup-only: true
+
+    - if: env.CUR_RUNTIME_TEST && matrix.rootfs && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.CUR_USE_IMAGEBUILDER == 'true'
+      id: download-ib
+      run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_IMAGEBUILDER_URL}/${USE_IMAGEBUILDER_FILE}"
+
+    - name: Generate custom rootfs docker
+      if: steps.download-ib.outcome == 'success'
+      run: |
+        sha256sum --check --status ./${CUR_REPO_NAME}/imagebuilder.sha256sums || exit 1
+        mkdir -p "${CUR_IB_DIR_NAME}"
+        XZ_OPT='-T0' tar -xJf "${USE_IMAGEBUILDER_FILE}" --strip-components=1 -C "${CUR_IB_DIR_NAME}"
+        # Generate rootfs by imagebuilder
+        bash ${CUR_REPO_NAME}/scripts/build_rootfs.sh
+
+    - if: env.CUR_RUNTIME_TEST && matrix.rootfs && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.CUR_USE_IMAGEBUILDER != 'true'
+      run: |
+        curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_ROOTFS_URL}/${USE_ROOTFS_FILE}"
+        sha256sum --check --status ./${CUR_REPO_NAME}/rootfs.sha256sums || exit 1
+        mkdir -p ./${CUR_REPO_NAME}/docker/custom/rootfs
+        XZ_OPT='-T0' tar -xf "${USE_ROOTFS_FILE}" --strip-components=1 -C ./${CUR_REPO_NAME}/docker/custom/rootfs
+
+    - name: Save Custom rootfs
+      if: env.CUR_RUNTIME_TEST && matrix.rootfs && steps.cache-rootfs-files.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ env.CHCHE_ROOTFS_PATH }}
+        key: ${{ env.CHCHE_ROOTFS_KEY }}
+
+    - name: Upload Envs
+      uses: actions/upload-artifact@v4
+      with:
+        name: cache-envs
+        path: ./${{ env.CUR_REPO_NAME }}/${{ matrix.target }}-${{ matrix.link }}
+
   build-matrix:
     name: ${{ matrix.link }}, ${{ matrix.target }}, qt${{ matrix.qt }}, lt_${{ matrix.lt }}
-    needs: build-prep
+    needs: [build-prep, download-sdk]
     env:
       CUR_LIBT_VERSION: ${{ matrix.lt }}
       CUR_LINK_TYPE: ${{ matrix.link }}
@@ -108,7 +209,6 @@ jobs:
       CUR_TARGET_NAME: ${{ matrix.target }}
       CUR_REPO_NAME: auto-build
       CUR_QBT_REPO_NAME: qt_repo
-      CUR_IB_DIR_NAME: imagebuilder
       CUR_SDK_DIR_NAME: build
       CUR_LOCAL_REPO_NAME: local
     runs-on: ubuntu-latest
@@ -128,32 +228,32 @@ jobs:
           sudo apt-get -y install curl jq
         }
 
+    - name: Download Env
+      uses: actions/download-artifact@v4
+      with:
+        name: cache-envs
+        path: ./${{ env.CUR_REPO_NAME }}/cache-envs
+
     - name: Initializing
       working-directory: ./${{ env.CUR_REPO_NAME }}
       run: |
-        bash ./scripts/init_env.sh
+        . cache-envs/${CUR_TARGET_NAME}-${CUR_LINK_TYPE}
+        cat cache-envs/${CUR_TARGET_NAME}-${CUR_LINK_TYPE} >> ${GITHUB_ENV}
+        echo "USE_SDK_REVISION=${CHCHE_SDK_KEY##*-}" >> ${GITHUB_ENV}
+        USE_QEMU_CPU=$(jq -c '.openwrt."'${CUR_TARGET_NAME}'".USE_QEMU_CPU? // empty' ${CUR_LINK_TYPE}.json)
+        [ -n "${USE_QEMU_CPU}" ] && echo "QEMU_CPU=${USE_QEMU_CPU}" >> ${GITHUB_WORKSPACE}/docker_env || touch ${GITHUB_WORKSPACE}/docker_env
+        bash ./scripts/init_env_stage2.sh
 
     - name: Restore SDK
       uses: actions/cache/restore@v4
-      id: cache-sdk
       with:
-        path: ./${{ env.USE_SDK_FILE }}
-        key: ${{ matrix.link }}-${{ matrix.target }}-${{ env.USE_SDK_REVISION }}
-
-    - if: steps.cache-sdk.outputs.cache-hit != 'true'
-      run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_SDK_URL}/${USE_SDK_FILE}"
-
-    - name: Save SDK
-      if: steps.cache-sdk.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
-      with:
-        path: ./${{ env.USE_SDK_FILE }}
-        key: ${{ steps.cache-sdk.outputs.cache-primary-key }}
+        path: ${{ env.CHCHE_SDK_PATH }}
+        key: ${{ env.CHCHE_SDK_KEY }}
+        fail-on-cache-miss: true
 
     - run: |
-        sha256sum --check --status ./${CUR_REPO_NAME}/sdk.sha256sums || exit 1
         mkdir -p "${CUR_SDK_DIR_NAME}"
-        XZ_OPT='-T0' tar -xJf "${USE_SDK_FILE}" --strip-components=1 -C "${CUR_SDK_DIR_NAME}"
+        XZ_OPT='-T0' tar -xJf "${CHCHE_SDK_PATH}" --strip-components=1 -C "${CUR_SDK_DIR_NAME}"
 
     - name: Restore feeds
       id: cache-feeds
@@ -233,17 +333,26 @@ jobs:
           ${{ env.CUR_SDK_DIR_NAME }}/dl/qttools-*-src-${{ steps.pre-build.outputs.qt-version }}.tar.xz
         key: qt-${{ steps.pre-build.outputs.qt-version }}
 
-    - name: Build the Binary Files
-      if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
+    - name: Download pkgs
+      if: (steps.restore-dl.outcome == 'success' && steps.restore-dl.outputs.cache-hit != 'true') || (steps.restore-qt.outcome == 'success' && steps.restore-qt.outputs.cache-hit != 'true')
       working-directory: ./${{ env.CUR_SDK_DIR_NAME }}
       run: |
-        set -o pipefail
+        # Disable downloading default installed packages
+        sed -i '/config \(DEFAULT_[^\(TARGET\)]\|MODULE_DEFAULT_\|PACKAGE_\)/{:a;N;/\n$/!ba;s/\(default\) \(y\|m\)/\1 n/g}' Config-build.in
+
         echo "::group::make defconfig"
         make defconfig
         echo "::endgroup::"
-        echo "::group::Buding"
-        make package/luci-app-qbittorrent/compile V=sc -j$(($(nproc)+1)) BUILD_LOG=1 | grep -P "(^make\[\d+\]: ((Entering|Leaving) directory|\*\*\* .*Error).*|^time:.*|ERROR: .* failed to build\.)"
+        echo "::group::Downloading..."
+        make package/download V=sc -j$(($(nproc)+1))
+        make package/qttools/download V=sc -j$(($(nproc)+1))
         echo "::endgroup::"
+
+        # Clean up the obsolete packages
+        if [ -d "./dl" ]; then
+        	./scripts/dl_cleanup.py dl 2>/dev/null
+        	rm -rf dl/libtorrent-rasterbar-*.tar.gz
+        fi
 
     - name: Save downloaded source files (exclude Qt)
       if: steps.restore-dl.outcome == 'success' && steps.restore-dl.outputs.cache-hit != 'true'
@@ -264,6 +373,20 @@ jobs:
           ${{ env.CUR_SDK_DIR_NAME }}/dl/qtbase-*-src-${{ steps.pre-build.outputs.qt-version }}.tar.xz
           ${{ env.CUR_SDK_DIR_NAME }}/dl/qttools-*-src-${{ steps.pre-build.outputs.qt-version }}.tar.xz
         key: ${{ steps.restore-qt.outputs.cache-primary-key }}
+
+    - name: Build the Binary Files
+      if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
+      working-directory: ./${{ env.CUR_SDK_DIR_NAME }}
+      run: |
+        set -o pipefail
+
+        echo "::group::make defconfig"
+        make defconfig
+        echo "::endgroup::"
+
+        echo "::group::Buding"
+        make package/luci-app-qbittorrent/compile V=sc -j$(($(nproc)+1)) BUILD_LOG=1 | grep -P "(^make\[\d+\]: ((Entering|Leaving) directory|\*\*\* .*Error).*|^time:.*|ERROR: .* failed to build\.)"
+        echo "::endgroup::"
 
     - name: Pack all the flies
       id: pack-all
@@ -306,56 +429,10 @@ jobs:
     - name: Restore Custom rootfs
       if: matrix.runtime_test
       uses: actions/cache/restore@v4
-      id: cache-rootfs-files
       with:
-        path: ${{ env.CUR_REPO_NAME }}/docker/custom/rootfs
-        key: rootfs-${{ matrix.target }}-${{ env.USE_IMAGEBUILDER_REVISION }}${{ env.USE_ROOTFS_REVISION }}
-
-    - name: Restore ImageBuilder
-      if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER == 'true'
-      uses: actions/cache/restore@v4
-      id: cache-ib
-      with:
-        path: |
-          ${{ env.USE_IMAGEBUILDER_FILE }}
-          ${{ env.CUR_IB_DIR_NAME }}/dl
-        key: IB-${{ matrix.target }}-${{ env.USE_IMAGEBUILDER_REVISION }}
-
-    - if: steps.cache-ib.outcome == 'success' && steps.cache-ib.outputs.cache-hit != 'true'
-      id: download-ib
-      run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_IMAGEBUILDER_URL}/${USE_IMAGEBUILDER_FILE}"
-
-    - name: Generate custom rootfs docker
-      if: matrix.runtime_test && (steps.cache-ib.outputs.cache-hit == 'true' || steps.download-ib.outcome == 'success')
-      run: |
-        sha256sum --check --status ./${CUR_REPO_NAME}/imagebuilder.sha256sums || exit 1
-        mkdir -p "${CUR_IB_DIR_NAME}"
-        XZ_OPT='-T0' tar -xJf "${USE_IMAGEBUILDER_FILE}" --strip-components=1 -C "${CUR_IB_DIR_NAME}"
-        # Generate rootfs by imagebuilder
-        bash ${CUR_REPO_NAME}/scripts/build_rootfs.sh
-
-    - name: Save ImageBuilder
-      if: steps.download-ib.outcome == 'success'
-      uses: actions/cache/save@v4
-      with:
-        path: |
-          ${{ env.USE_IMAGEBUILDER_FILE }}
-          ${{ env.CUR_IB_DIR_NAME }}/dl
-        key: ${{ steps.cache-ib.outputs.cache-primary-key }}
-
-    - if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER != 'true'
-      run: |
-        curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_ROOTFS_URL}/${USE_ROOTFS_FILE}"
-        sha256sum --check --status ./${CUR_REPO_NAME}/rootfs.sha256sums || exit 1
-        mkdir -p ./${CUR_REPO_NAME}/docker/custom/rootfs
-        XZ_OPT='-T0' tar -xf "${USE_ROOTFS_FILE}" --strip-components=1 -C ./${CUR_REPO_NAME}/docker/custom/rootfs
-
-    - name: Save Custom rootfs
-      if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
-      with:
-        path: ${{ env.CUR_REPO_NAME }}/docker/custom/rootfs
-        key: ${{ steps.cache-rootfs-files.outputs.cache-primary-key }}
+        path: ${{ env.CHCHE_ROOTFS_PATH }}
+        key: ${{ env.CHCHE_ROOTFS_KEY }}
+        fail-on-cache-miss: true
 
     - name: Build Custom Docker Container
       if: matrix.runtime_test

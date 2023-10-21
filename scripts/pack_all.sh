@@ -140,9 +140,3 @@ echo "SAVED_NAME=${SAVED_NAME}" >> $GITHUB_ENV
 # tar -czvf - ${BUILD_KEY}.pub ${BUILD_KEY} | \
 # openssl enc -aes-256-ctr -pbkdf2 -pass pass:${KEYCHAIN_SECRET} > ${SAVE_ROOT_DIR}-keychain.bin
 ## openssl enc -d -aes-256-ctr -pbkdf2 -pass pass:123456 -in ${SAVE_ROOT_DIR}-keychain.bin | tar -xz
-
-# Clean up the obsolete packages
-if [ -d "./dl" ]; then
-	./scripts/dl_cleanup.py dl 2>/dev/null
-	rm -rf dl/libtorrent-rasterbar-*.tar.gz
-fi
