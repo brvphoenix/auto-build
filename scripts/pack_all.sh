@@ -1,17 +1,13 @@
 #!/bin/bash
 
 set -eET -o pipefail
-. ${GITHUB_WORKSPACE}/auto-build/build_default.sh
+. ${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/scripts/build_default.sh
 
-[ -d build ] && cd build || { echo "Not exist 'build' dir"; exit 0; }
+[ -d "${CUR_SDK_DIR_NAME}" ] && cd ${CUR_SDK_DIR_NAME} || { echo "Not exist '${CUR_SDK_DIR_NAME}' directory"; exit 0; }
 
-target_name=$1
-link_type=$2
-qt_ver=$3
-libt_ver=$4
-target_arch=$(perl ./scripts/dump-target-info.pl targets 2>/dev/null | grep "${target_name//-/\/}" | cut -d ' ' -f 2)
+target_arch=$(perl ./scripts/dump-target-info.pl targets 2>/dev/null | grep "${CUR_TARGET_NAME//-/\/}" | cut -d ' ' -f 2)
 
-SAVE_ROOT_DIR=${GITHUB_WORKSPACE}/qbittorrent_${target_name}
+SAVE_ROOT_DIR=${GITHUB_WORKSPACE}/qbittorrent_${CUR_TARGET_NAME}
 PKGS_DIR=${SAVE_ROOT_DIR}/pkgs
 KEY_DIR=${SAVE_ROOT_DIR}/key
 
@@ -19,10 +15,10 @@ if [ "${CACHE_HIT}" = "true" ]; then
 	fingerprint=$(ls -t ${KEY_DIR} | head -n 1)
 else
 	mkdir -p ${SAVE_ROOT_DIR} ${PKGS_DIR} ${KEY_DIR}
-	if [ "${link_type}" = "static" ]; then
+	if [ "${CUR_LINK_TYPE}" = "static" ]; then
 		[ ! -d "./bin/packages" ] || find ./bin/packages -type f -iname *qbittorrent* -exec cp -f {} ${PKGS_DIR} \;
 	else
-		[ "$libt_ver" = "1_2" ] && {
+		[ "$CUR_LIBT_VERSION" = "1_2" ] && {
 			[ ! -d "./bin/packages" ] || find ./bin/packages -type f -iname *.ipk -exec cp -f {} ${PKGS_DIR} \;
 			[ ! -d "./bin/targets" ] || find ./bin/targets -type f \( \
 				-iname libstdcpp*.ipk -o \
@@ -122,7 +118,7 @@ EOF
 sed -i -e "s/\${target_arch}/${target_arch}/g" \
 	-e "s/\$fingerprint/${fingerprint}/g" ${SAVE_ROOT_DIR}/install.sh
 
-SAVED_NAME="${target_arch}-${link_type}-qt${qt_ver}-lt_${libt_ver}"
+SAVED_NAME="${target_arch}-${CUR_LINK_TYPE}-qt${CUR_QT_VERSION}-lt_${CUR_LIBT_VERSION}"
 # Add SAVED_NAME to the environment variables
 echo "SAVED_NAME=${SAVED_NAME}" >> $GITHUB_ENV
 
@@ -150,5 +146,3 @@ if [ -d "./dl" ]; then
 	./scripts/dl_cleanup.py dl 2>/dev/null
 	rm -rf dl/libtorrent-rasterbar-*.tar.gz
 fi
-
-rm -rf feeds/local{,tmp,.index,.targetindex}

@@ -1,21 +1,16 @@
 #!/bin/bash
 
 set -eET -o pipefail
-. ${GITHUB_WORKSPACE}/auto-build/build_default.sh
-
-target_name=$1
-link_type=$2
-qt_ver=$3
-libt_ver=$4
+. ${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/scripts/build_default.sh
 
 # Parse json files
-JSON_FILE=./${link_type}.json
+JSON_FILE=./${CUR_LINK_TYPE}.json
 
 for item in $(jq -r '.openwrt | to_entries[] | select(.value | (type != "object" and type != "array")) | "\(.key)=\(.value)"' ${JSON_FILE}); do
 	eval "${item}"
 done
 
-for option in $(jq -r '.openwrt."'${target_name}'" | to_entries[] | "\(.key)=\(.value)"' ${JSON_FILE}); do
+for option in $(jq -r '.openwrt."'${CUR_TARGET_NAME}'" | to_entries[] | "\(.key)=\(.value)"' ${JSON_FILE}); do
 	eval "${option}"
 done
 
@@ -28,7 +23,7 @@ generate_variant() {
 
 	if [ -z "$(eval echo \${USE_${name_upper}_URL})" ]; then
 		[ "${version}" = "snapshots" ] && version_path="snapshots" || version_path="releases/${version}"
-		download_url=${USE_DOWNLOAD_SERVER}/${version_path}/targets/${target_name//-/\/}
+		download_url=${USE_DOWNLOAD_SERVER}/${version_path}/targets/${CUR_TARGET_NAME//-/\/}
 		echo "USE_${name_upper}_URL=${download_url}" >> $GITHUB_ENV
 	fi
 
@@ -61,24 +56,19 @@ if [ "${RUNTIME_TEST}" = "true" ]; then
 		imagebuilder_pattern="openwrt-imagebuilder-.*.Linux-x86_64.tar.xz"
 		generate_variant "imagebuilder" "${USE_ROOTFS_VERSION}" "${USE_ROOTFS_KEYRING}" "${imagebuilder_pattern}"
 	else
-		rootfs_pattern="openwrt-.*${target_name}-.*rootfs.tar.gz"
+		rootfs_pattern="openwrt-.*${CUR_TARGET_NAME}-.*rootfs.tar.gz"
 		generate_variant "rootfs" "${USE_ROOTFS_VERSION}" "${USE_ROOTFS_KEYRING}" "${rootfs_pattern}"
 	fi
 	echo "USE_IMAGEBUILDER=${USE_IMAGEBUILDER}" >> $GITHUB_ENV
 fi
 
 # QBT source and libtorrent source info
-echo USE_QBT_REFS=$(jq -r '.qbittorrent.QT_VERSION?."'${qt_ver}'"' ${JSON_FILE}) >> $GITHUB_ENV
+echo USE_QBT_REF=$(jq -r '.qbittorrent.QT_VERSION?."'${CUR_QT_VERSION}'"' ${JSON_FILE}) >> $GITHUB_ENV
 
-LIBT_REFS=$(jq -r '.qbittorrent.LIBTORRENT_VERSION?."'${libt_ver}'" // empty' ${JSON_FILE})
-if [ -z "${LIBT_REFS}" ]; then
-	[ -d "../auto-build/rsync/common/libtorrent-rasterbar_${libt_ver}" ] && {
-		echo "USE_LIBT_LOCAL=true" >> $GITHUB_ENV
-		echo USE_LIBT_HASH=$(git ls-remote -h ${GITHUB_SERVER_URL}/arvidn/libtorrent refs/heads/RC_${libt_ver} | head -c 10) >> $GITHUB_ENV
-	} || exit 1
-else
-	echo "USE_LIBT_REFS=${LIBT_REFS}" >> $GITHUB_ENV
-fi
+# libtorrent
+echo USE_LIBT_HASH=$(git ls-remote -h ${GITHUB_SERVER_URL}/arvidn/libtorrent refs/heads/RC_${CUR_LIBT_VERSION} | head -c 10) >> $GITHUB_ENV
+libt_ref=$(jq -r '.qbittorrent.LIBTORRENT_VERSION?."'${CUR_LIBT_VERSION}'" // empty' ${JSON_FILE})
+[ -z "${libt_ref}" ] || echo "USE_LIBT_REF=${libt_ref}" >> $GITHUB_ENV
 
 case "${USE_SDK_VERSION}" in
 *-SNAPSHOT)

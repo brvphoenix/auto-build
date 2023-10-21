@@ -1,7 +1,7 @@
 #!/bin/sh
 
 set -eET -o pipefail
-. ./build_default.sh
+. ./scripts/build_default.sh
 
 VERSION=${1:-0.0.0}
 BRANCH="$(echo $VERSION | cut -d '.' -f 1,2 | tr '.' '_')_x"
@@ -34,5 +34,3 @@ sed -i -e "s/\(# Last updated time:\) .*\$/\1 $(date -u "+%F %T %z")/g" \
 	-e 's/\* openssl.*/* openssl '$openssl_dynamic_ver' \/ '$openssl_static_ver'/g' \
 	-e 's/\* zlib.*/* zlib '$zlib_dynamic_ver' \/ '$zlib_static_ver'/g' \
 	./README.md
-
-sed -i 's/release-[0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}/release-'${VERSION%%-*}'/' build_pre.sh

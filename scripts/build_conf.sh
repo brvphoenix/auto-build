@@ -1,14 +1,10 @@
 #!/bin/bash
 
 set -eET -o pipefail
-. ${GITHUB_WORKSPACE}/auto-build/build_default.sh
-
-qt_ver=$1
-libt_ver=$2
-link_type=$3
+. ${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/scripts/build_default.sh
 
 # Restore the modified feeds sources
-rm -rf feeds/local{,.tmp,.index,.targetindex}
+rm -rf feeds/${CUR_LOCAL_REPO_NAME}{,.tmp,.index,.targetindex}
 for d in feeds/*; do
 	if [ -d "$d" -a -d "$d/.git" ]; then
 		if $(git -C "$d" status >> /dev/null 2>&1); then
@@ -25,23 +21,25 @@ sed \
 	-e 's,https://git\.openwrt\.org/project/,https://github.com/openwrt/,' \
 	feeds.conf.default | grep -Ev "^src-git(-full)? (routing|telephony) .*" > feeds.conf
 
-echo "src-cpy local ${GITHUB_WORKSPACE}/qt_repo" >> feeds.conf
+echo "src-cpy ${CUR_LOCAL_REPO_NAME} ${GITHUB_WORKSPACE}/${CUR_QBT_REPO_NAME}" >> feeds.conf
 
 echo "::group::Update feeds"
 if [ "${IGNORE_UPDATE_FEEDS}" != "true" ]; then
 	# Sync with the source
-	./scripts/feeds update -f base packages luci local
+	./scripts/feeds update -f base packages luci ${CUR_LOCAL_REPO_NAME}
 else
 	# Update custom feeds
-	./scripts/feeds update local
+	./scripts/feeds update ${CUR_LOCAL_REPO_NAME}
 fi
 echo "::endgroup::"
 
 # Sync openssl module
-[ "${link_type}" = "dynamic" -o -n "$(ls include/openssl-*.mk 2>/dev/null)" ] || rsync -a feeds/base/include/openssl-*.mk include
+[ "${CUR_LINK_TYPE}" = "dynamic" -o -n "$(ls include/openssl-*.mk 2>/dev/null)" ] || rsync -a feeds/base/include/openssl-*.mk include
 
-for extra_script in ../auto-build/scripts/tmp/*.sh; do
-	[ ! -f "${extra_script}" ] || . "${extra_script}"
+for extra_script in ../${CUR_REPO_NAME}/scripts/extensions/*.sh; do
+	echo "::group::Runing ${extra_script}"
+	[ ! -f "${extra_script}" ] || bash "${extra_script}"
+	echo "::endgroup::"
 done
 
 cat > .config <<EOF
@@ -53,18 +51,18 @@ CONFIG_QBT_LANG-zh_CN=y
 CONFIG_LUCI_LANG_zh_Hans=y
 EOF
 
-if [ "${link_type}" = "static" ]; then
+if [ "${CUR_LINK_TYPE}" = "static" ]; then
 	cat >> .config <<-EOF
-		CONFIG_QT${qt_ver}_OPENSSL_LINKED=y
-		CONFIG_QT${qt_ver}_STATIC=y
-		# CONFIG_QT${qt_ver}_SYSTEM_DC is not set
-		CONFIG_QT${qt_ver}_SYSTEM_PCRE2=y
-		CONFIG_QT${qt_ver}_SYSTEM_ZLIB=y
+		CONFIG_QT${CUR_QT_VERSION}_OPENSSL_LINKED=y
+		CONFIG_QT${CUR_QT_VERSION}_STATIC=y
+		# CONFIG_QT${CUR_QT_VERSION}_SYSTEM_DC is not set
+		CONFIG_QT${CUR_QT_VERSION}_SYSTEM_PCRE2=y
+		CONFIG_QT${CUR_QT_VERSION}_SYSTEM_ZLIB=y
 		CONFIG_QBT_STATIC_LINK=y
 	EOF
 
 	# Disable deprecated features if built statically
-	[ "${libt_ver}" != "2_0" ] || \
+	[ "${CUR_LIBT_VERSION}" != "2_0" ] || \
 	cat >> .config <<-EOF
 		# CONFIG_OPENSSL_ENGINE is not set
 		# CONFIG_OPENSSL_WITH_DEPRECATED is not set
@@ -72,10 +70,10 @@ if [ "${link_type}" = "static" ]; then
 fi
 
 echo "::group::Install packages"
-./scripts/feeds install -p local luci-app-qbittorrent
+./scripts/feeds install -p ${CUR_LOCAL_REPO_NAME} luci-app-qbittorrent
 echo "::endgroup::"
 
 find -L package/feeds/*/{boost,libtorrent-rasterbar,luci-app-qbittorrent,openssl,pcre2,qbittorrent,qtbase,qttools,zlib} .config \
-	-type f -print0 | sort -z | xargs -0 cat | sha256sum | awk '{print $1}' | xargs -i echo "USE_BINARY_HASH={}" >> $GITHUB_ENV
+	-type f -print0 | sort -z | xargs -0 cat | sha256sum | awk '{print $1}' | xargs -i echo "bin-hash={}" >> $GITHUB_OUTPUT
 cat package/feeds/*/{boost,openssl,pcre2,qbittorrent,zlib}/Makefile | grep '\(PKG_HASH\|PKG_MIRROR_HASH\)' | \
-	sha256sum | awk '{print $1}' | xargs -i echo "USE_DL_HASH={}" >> $GITHUB_ENV
+	sha256sum | awk '{print $1}' | xargs -i echo "src-hash={}" >> $GITHUB_OUTPUT

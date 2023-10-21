@@ -68,14 +68,15 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       draft: ${{ steps.create-draft.outcome }}
     steps:
-    - name: Clone Current Repository
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
+
     - name: Install Dependencies
       run: |
         [ -n "$(command -v jq)" ] || {
         	sudo apt-get update
         	sudo apt-get -y install jq
         }
+
     - name: Format build matrix
       id: set-matrix
       env:
@@ -84,30 +85,8 @@ jobs:
         inputs_qt: ${{ github.event.inputs.qt }}
         inputs_lt: ${{ github.event.inputs.lt }}
       run: |
-        matrix='[]'
-        for json_file in ./*.json; do
-        	json_file_name=$(basename $json_file)
-        	link=${json_file_name%.*}
-        	[ -z "${inputs_type}" ] || [ "${inputs_type}" = "all" ] || [ "${inputs_type}" = "${link}" ] || continue;
+        bash ./scripts/gen_matrix.sh
 
-        	matrix=$(jq -c --argjson mt "${matrix}" --arg lt "${inputs_lt/./_}" --arg qt "${inputs_qt}" --arg target "${inputs_target}" --arg link "${link}" '
-        		foreach (.openwrt | (if (.RUN_SKIP? // false) then [] else . end) | to_entries | map(select((.value | type) == "object"))) as $item (
-        			[{
-        				lt: .qbittorrent.LIBTORRENT_VERSION? | to_entries[]? | .key? | select($lt == "" or $lt == "all" or $lt == .),
-        				qt: .qbittorrent.QT_VERSION? | to_entries[]? | .key? | select($qt == "" or $qt == "all" or $qt == .),
-        				link: $link,
-        				target: .openwrt | to_entries[] | select((.value | type) == "object" and (.value?.RUN_SKIP? // false) != true) | .key | (
-        					select($target == "" or $target == "all" or (split("-") | .[0]) == $target)
-        				)
-        			}];
-        			map(select(.target == $item[].key) | .target as $tg | . += {runtime_test: $item[] | select(.key == $tg) | (.value?.RUNTIME_TEST? // false)});
-        			.
-        		) | . + $mt | unique | sort_by(.link + .target)
-        	' ${link}.json)
-        done
-
-        [ "${matrix}" != "[]" ] || exit 1
-        echo "matrix={\"include\":${matrix}}" >> $GITHUB_OUTPUT
     - name: Create draft
       id: create-draft
       if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
@@ -116,291 +95,281 @@ jobs:
       run: |
         while [ "$(gh release list | cut -f 3 | grep -c '^'${GITHUB_REF_NAME}'$')" -ne 0 ]; do gh release delete "${GITHUB_REF_NAME}" -y; done
         gh release create -d --verify-tag --generate-notes -t "Release ${GITHUB_REF_NAME}" "${GITHUB_REF_NAME}"
+
   build-matrix:
     name: ${{ matrix.link }}, ${{ matrix.target }}, qt${{ matrix.qt }}, lt_${{ matrix.lt }}
     needs: build-prep
+    env:
+      CUR_LIBT_VERSION: ${{ matrix.lt }}
+      CUR_LINK_TYPE: ${{ matrix.link }}
+      CUR_QT_VERSION: ${{ matrix.qt }}
+      CUR_TARGET_NAME: ${{ matrix.target }}
+      CUR_REPO_NAME: auto-build
+      CUR_QBT_REPO_NAME: qt_repo
+      CUR_IB_DIR_NAME: imagebuilder
+      CUR_SDK_DIR_NAME: build
+      CUR_LOCAL_REPO_NAME: local
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.build-prep.outputs.matrix) }}
     steps:
-    - name: Clone Current Repository
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       with:
-        path: auto-build
+        path: ${{ env.CUR_REPO_NAME }}
         persist-credentials: false
+
     - name: Install Dependencies
       run: |
         [ -n "$(command -v curl)" -a -n "$(command -v jq)" ] || {
           sudo apt-get update
           sudo apt-get -y install curl jq
         }
+
     - name: Initializing
-      working-directory: ./auto-build
+      working-directory: ./${{ env.CUR_REPO_NAME }}
       run: |
-        bash ./init_env.sh "${{ matrix.target }}" "${{ matrix.link }}" "${{ matrix.qt }}" "${{ matrix.lt }}"
-    - name: Cache SDK
-      uses: actions/cache@v3
+        bash ./scripts/init_env.sh
+
+    - name: Restore SDK
+      uses: actions/cache/restore@v3
       id: cache-sdk
       with:
         path: ./${{ env.USE_SDK_FILE }}
         key: ${{ matrix.link }}-${{ matrix.target }}-${{ env.USE_SDK_REVISION }}
+
     - if: steps.cache-sdk.outputs.cache-hit != 'true'
       run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_SDK_URL}/${USE_SDK_FILE}"
-    - run: |
-        sha256sum --check --status ./auto-build/sdk.sha256sums || exit 1
-        mkdir -p build
-        XZ_OPT='-T0' tar -xJf "${USE_SDK_FILE}" --strip-components=1 -C build
-    - name: Cache feeds
-      id: cache-feeds
-      uses: actions/cache@v3
+
+    - name: Save SDK
+      if: steps.cache-sdk.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v3
       with:
-        path: |
-          build/feeds/*
+        path: ./${{ env.USE_SDK_FILE }}
+        key: ${{ steps.cache-sdk.outputs.cache-primary-key }}
+
+    - run: |
+        sha256sum --check --status ./${CUR_REPO_NAME}/sdk.sha256sums || exit 1
+        mkdir -p "${CUR_SDK_DIR_NAME}"
+        XZ_OPT='-T0' tar -xJf "${USE_SDK_FILE}" --strip-components=1 -C "${CUR_SDK_DIR_NAME}"
+
+    - name: Restore feeds
+      id: cache-feeds
+      uses: actions/cache/restore@v3
+      with:
+        path: ${{ env.CUR_SDK_DIR_NAME }}/feeds/*
         key: feeds-${{ matrix.link }}-${{ env.USE_FEEDS_REVISION }}
         restore-keys: |
           feeds-${{ matrix.link }}-
           feeds-
+
     - name: Clone qbittorrent
       uses: actions/checkout@v4
       with:
-        ref: ${{ env.USE_QBT_REFS }}
+        ref: ${{ env.USE_QBT_REF }}
         repository: ${{ github.repository_owner }}/SomePackages
         fetch-depth: 0
         token: ${{ secrets.SUPER_TOKEN }}
-        path: qt_repo
-    - name: Clone libtorrent
-      if: env.USE_LIBT_LOCAL != 'true'
-      uses: actions/checkout@v4
-      with:
-        ref: ${{ env.USE_LIBT_REFS }}
-        repository: ${{ github.repository_owner }}/SomePackages
-        fetch-depth: 1
-        token: ${{ secrets.SUPER_TOKEN }}
-        path: libt_repo
+        path: ${{ env.CUR_QBT_REPO_NAME }}
+
+    - if: env.USE_LIBT_REF != '' && env.USE_LIBT_REF != env.USE_QBT_REF
+      run: |
+        cd ${CUR_QBT_REPO_NAME}
+        git restore -s origin/${USE_LIBT_REF} -- packages/libs/libtorrent-rasterbar
+
     - name: Prepare modified packages
       run: |
-        bash ./auto-build/build_pre.sh "${{ matrix.qt }}" "${{ matrix.lt }}" "${{ matrix.link }}"
+        bash ./${CUR_REPO_NAME}/scripts/build_pre.sh
+
     - name: Prepare building
+      id: pre-build
       env:
         IGNORE_UPDATE_FEEDS: ${{ steps.cache-feeds.outputs.cache-hit }}
-      working-directory: ./build
+      working-directory: ./${{ env.CUR_SDK_DIR_NAME }}
       run: |
-        bash ../auto-build/build_conf.sh "${{ matrix.qt }}" "${{ matrix.lt }}" "${{ matrix.link }}"
-    - if: env.USE_LIBT_HASH == ''
-      run: |
-        echo USE_LIBT_HASH=$(sed -n 's/PKG_HASH:=\(\w\+\)/\1/gp' build/feeds/local/packages/libs/libtorrent-rasterbar/Makefile | head -c 10)" >> $GITHUB_ENV
-    - name: Cache binary
+        bash ../${CUR_REPO_NAME}/scripts/build_conf.sh
+
+    - name: Save feeds
+      if: steps.cache-feeds.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v3
+      with:
+        path: ${{ env.CUR_SDK_DIR_NAME }}/feeds/*
+        key: ${{ steps.cache-feeds.outputs.cache-primary-key }}
+
+    - name: Restore binary
       if: needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true'
       id: cache-bin
-      uses: actions/cache@v3
+      uses: actions/cache/restore@v3
       with:
         path: |
           qbittorrent_${{ matrix.target }}
-          build/logs
-        key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}', matrix.link, matrix.target, env.USE_SDK_REVISION, env.USE_LIBT_HASH, env.USE_BINARY_HASH) }}
-    - name: Cache downloaded source files (exclude Qt)
-      if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
-      uses: actions/cache@v3
+          ${{ env.CUR_SDK_DIR_NAME }}/logs
+        key: ${{ format('bin-{0}-{1}-{2}-{3}-{4}', matrix.link, matrix.target, env.USE_SDK_REVISION, env.USE_LIBT_HASH, steps.pre-build.outputs.bin-hash) }}
+
+    - name: Restore downloaded source files (exclude Qt)
+      if: steps.cache-bin.outcome == 'success' && steps.cache-bin.outputs.cache-hit != 'true'
+      id: restore-dl
+      uses: actions/cache/restore@v3
       with:
         path: |
-          build/dl/*
-          !build/dl/libtorrent-rasterbar-*.tar.xz
-          !build/dl/qtbase-*.tar.xz
-          !build/dl/qttools-*.tar.xz
-        key: source-${{ matrix.link }}-${{ env.USE_DL_HASH }}
+          ${{ env.CUR_SDK_DIR_NAME }}/dl/*
+          !${{ env.CUR_SDK_DIR_NAME }}/dl/libtorrent-rasterbar-*.tar.xz
+          !${{ env.CUR_SDK_DIR_NAME }}/dl/qtbase-*.tar.xz
+          !${{ env.CUR_SDK_DIR_NAME }}/dl/qttools-*.tar.xz
+        key: source-${{ matrix.link }}-${{ steps.pre-build.outputs.src-hash }}
         restore-keys: |
           source-${{ matrix.link }}-
           source-
-    - if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
-      run: |
-        echo "USE_QT_VER=$(sed -n '/PKG_BASE:=/{N;s/PKG_BASE:=\([0-9.]\+\)\s\+PKG_BUGFIX:=\(\w\+\)/\1.\2/gp}' build/feeds/local/packages/qt${{ matrix.qt }}/qtbase/Makefile)" >> $GITHUB_ENV
-    - name: Cache Qt source
-      if: env.USE_QT_VER != ''
-      uses: actions/cache@v3
+
+    - name: Restore Qt source
+      if: steps.cache-bin.outcome == 'success' && steps.cache-bin.outputs.cache-hit != 'true'
+      id: restore-qt
+      uses: actions/cache/restore@v3
       with:
         path: |
-          build/dl/qtbase-*-src-${{ env.USE_QT_VER }}.tar.xz
-          build/dl/qttools-*-src-${{ env.USE_QT_VER }}.tar.xz
-        key: qt-${{ env.USE_QT_VER }}
+          ${{ env.CUR_SDK_DIR_NAME }}/dl/qtbase-*-src-${{ steps.pre-build.outputs.qt-version }}.tar.xz
+          ${{ env.CUR_SDK_DIR_NAME }}/dl/qttools-*-src-${{ steps.pre-build.outputs.qt-version }}.tar.xz
+        key: qt-${{ steps.pre-build.outputs.qt-version }}
+
     - name: Build the Binary Files
       if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
-      working-directory: ./build
+      working-directory: ./${{ env.CUR_SDK_DIR_NAME }}
       run: |
+        set -o pipefail
+        echo "::group::make defconfig"
         make defconfig
-        make package/luci-app-qbittorrent/compile V=sc -j$(($(nproc)+1)) BUILD_LOG=1
+        echo "::endgroup::"
+        echo "::group::Buding"
+        make package/luci-app-qbittorrent/compile V=sc -j$(($(nproc)+1)) BUILD_LOG=1 | grep -P "(^make\[\d+\]: ((Entering|Leaving) directory|\*\*\* .*Error).*|^time:.*|ERROR: .* failed to build\.)"
+        echo "::endgroup::"
+
+    - name: Save downloaded source files (exclude Qt)
+      if: steps.restore-dl.outcome == 'success' && steps.restore-dl.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v3
+      with:
+        path: |
+          ${{ env.CUR_SDK_DIR_NAME }}/dl/*
+          !${{ env.CUR_SDK_DIR_NAME }}/dl/libtorrent-rasterbar-*.tar.xz
+          !${{ env.CUR_SDK_DIR_NAME }}/dl/qtbase-*.tar.xz
+          !${{ env.CUR_SDK_DIR_NAME }}/dl/qttools-*.tar.xz
+        key: ${{ steps.restore-dl.outputs.cache-primary-key }}
+
+    - name: Save Qt source
+      if: steps.restore-qt.outcome == 'success' && steps.restore-qt.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v3
+      with:
+        path: |
+          ${{ env.CUR_SDK_DIR_NAME }}/dl/qtbase-*-src-${{ steps.pre-build.outputs.qt-version }}.tar.xz
+          ${{ env.CUR_SDK_DIR_NAME }}/dl/qttools-*-src-${{ steps.pre-build.outputs.qt-version }}.tar.xz
+        key: ${{ steps.restore-qt.outputs.cache-primary-key }}
+
     - name: Pack all the flies
       id: pack-all
       if: success() || failure()
       env:
         CACHE_HIT: ${{ steps.cache-bin.outputs.cache-hit }}
       run: |
-        bash ./auto-build/pack_all.sh "${{ matrix.target }}" "${{ matrix.link }}" "${{ matrix.qt }}" "${{ matrix.lt }}"
+        bash ./${CUR_REPO_NAME}/scripts/pack_all.sh
+
+    - name: Save binary
+      if: steps.cache-bin.outcome == 'success' && steps.cache-bin.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v3
+      with:
+        path: |
+          qbittorrent_${{ matrix.target }}
+          ${{ env.CUR_SDK_DIR_NAME }}/logs
+        key: ${{ steps.cache-bin.outputs.cache-primary-key }}
+
     - name: Upload Pkgs
       if: needs.build-prep.outputs.draft != 'success' && steps.pack-all.outputs.pkgs == 'true'
       uses: actions/upload-artifact@v3
       with:
         name: ${{ matrix.target }}-${{ matrix.link }}-qt${{ matrix.qt }}-lt_${{ matrix.lt }}-pkgs_${{ github.run_attempt }}
         path: ${{ env.SAVED_NAME }}.tar.xz
+
     - name: Upload sha256sums
       if: steps.pack-all.outputs.pkgs == 'true'
       uses: actions/upload-artifact@v3
       with:
         name: sha256sum
         path: ${{ env.SAVED_NAME }}.sha256sum
+
     - name: Upload Logs
       if: (success() || failure()) && steps.pack-all.outputs.logs == 'true'
       uses: actions/upload-artifact@v3
       with:
         name: ${{ matrix.target }}-${{ matrix.link }}-qt${{ matrix.qt }}-lt_${{ matrix.lt }}-logs_${{ github.run_attempt }}
         path: ${{ env.SAVED_NAME }}.logs.tar.xz
-    - name: Cache Custom rootfs
+
+    - name: Restore Custom rootfs
       if: matrix.runtime_test
-      uses: actions/cache@v3
+      uses: actions/cache/restore@v3
       id: cache-rootfs-files
       with:
-        path: auto-build/docker/custom/rootfs
+        path: ${{ env.CUR_REPO_NAME }}/docker/custom/rootfs
         key: rootfs-${{ matrix.target }}-${{ env.USE_IMAGEBUILDER_REVISION }}${{ env.USE_ROOTFS_REVISION }}
-    - name: Cache ImageBuilder
+
+    - name: Restore ImageBuilder
       if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER == 'true'
-      uses: actions/cache@v3
+      uses: actions/cache/restore@v3
       id: cache-ib
       with:
         path: |
           ${{ env.USE_IMAGEBUILDER_FILE }}
-          imagebuilder/dl
+          ${{ env.CUR_IB_DIR_NAME }}/dl
         key: IB-${{ matrix.target }}-${{ env.USE_IMAGEBUILDER_REVISION }}
-    - if: steps.cache-ib.outcome == 'success' && steps.cache-ib.outputs.cache-hit != 'true'
-      run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_IMAGEBUILDER_URL}/${USE_IMAGEBUILDER_FILE}"
-    - if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER == 'true'
-      run: |
-        sha256sum --check --status ./auto-build/imagebuilder.sha256sums || exit 1
-        mkdir -p imagebuilder
-        XZ_OPT='-T0' tar -xJf "${USE_IMAGEBUILDER_FILE}" --strip-components=1 -C imagebuilder
-    - name: Generate custom rootfs docker
-      if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER == 'true'
-      working-directory: ./imagebuilder
-      run: |
-        mkdir -p tmp
-        profile=$(make info | sed -n '/Available Profiles:/{:a;n;/^\w\+:/!ba;s/\(\w\+\):/\1/g;p}')
-        set -- $(DEVICE_TYPE=basic make info | sed -n -e 's/Default Packages: \(.*\)$/\1/gp' -e '/^'${profile}':/{:a;n;/\s\+Packages:/!ba;s/.*Packages: \(.*\)/\1/g;p}')
-        unset pkgs unselected
-        for pkg in $@; do
-        	[ "$pkg" = "procd" ] && { unselected=1; continue; } || true
-        	[ "$unselected" != 1 ] || pkgs="${pkgs} $([[ "$pkg" == "-*" ]] || echo -)${pkg}"
-        done
 
-        echo "::group::Create rootfs"
-        DEVICE_TYPE=basic make image PROFILE=${profile} PACKAGES="${pkgs}"
-        echo "::endgroup::"
-        find build_dir/target-* -mindepth 1 -maxdepth 1 -type d -iname "root-*" | xargs -i mv {} ../auto-build/docker/custom/rootfs
+    - if: steps.cache-ib.outcome == 'success' && steps.cache-ib.outputs.cache-hit != 'true'
+      id: download-ib
+      run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_IMAGEBUILDER_URL}/${USE_IMAGEBUILDER_FILE}"
+
+    - name: Save ImageBuilder
+      if: steps.download-ib.outcome == 'success'
+      uses: actions/cache/save@v3
+      with:
+        path: |
+          ${{ env.USE_IMAGEBUILDER_FILE }}
+          ${{ env.CUR_IB_DIR_NAME }}/dl
+        key: ${{ steps.cache-ib.outputs.cache-primary-key }}
+
+    - name: Generate custom rootfs docker
+      if: matrix.runtime_test && (steps.cache-ib.outputs.cache-hit == 'true' || steps.download-ib.outcome == 'success')
+      run: |
+        sha256sum --check --status ./${CUR_REPO_NAME}/imagebuilder.sha256sums || exit 1
+        mkdir -p "${CUR_IB_DIR_NAME}"
+        XZ_OPT='-T0' tar -xJf "${USE_IMAGEBUILDER_FILE}" --strip-components=1 -C "${CUR_IB_DIR_NAME}"
+        # Generate rootfs by imagebuilder
+        bash ${CUR_REPO_NAME}/scripts/build_rootfs.sh
+
     - if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER != 'true'
       run: |
         curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_ROOTFS_URL}/${USE_ROOTFS_FILE}"
-        sha256sum --check --status ./auto-build/rootfs.sha256sums || exit 1
-        mkdir -p ./auto-build/docker/custom/rootfs
-        XZ_OPT='-T0' tar -xf "${USE_ROOTFS_FILE}" --strip-components=1 -C ./auto-build/docker/custom/rootfs
+        sha256sum --check --status ./${CUR_REPO_NAME}/rootfs.sha256sums || exit 1
+        mkdir -p ./${CUR_REPO_NAME}/docker/custom/rootfs
+        XZ_OPT='-T0' tar -xf "${USE_ROOTFS_FILE}" --strip-components=1 -C ./${CUR_REPO_NAME}/docker/custom/rootfs
+
+    - name: Save Custom rootfs
+      if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v3
+      with:
+        path: ${{ env.CUR_REPO_NAME }}/docker/custom/rootfs
+        key: ${{ steps.cache-rootfs-files.outputs.cache-primary-key }}
+
     - name: Build Custom Docker Container
       if: matrix.runtime_test
       run: |
-        docker build -t test-container ./auto-build/docker/custom
+        docker build -t test-container ./${CUR_REPO_NAME}/docker/custom
+
     - name: Register QEMU
       if: matrix.runtime_test
       run: |
-        [ -n "$(command -v update-binfmts)" ] || {
-        	sudo apt-get update
-        	sudo apt-get -y install binfmt-support
-        }
+        bash ./${CUR_REPO_NAME}/scripts/register_qemu.sh
 
-        ## Update binfmts using ubuntu's binfmt files.
-        #sudo update-binfmts --import
-
-        mkdir -p qemu qemu/qus qemu/tmp
-        cd qemu
-
-        qus_ver=$(curl -fskLZ --compressed --fail-early \
-        	https://metadata.ftp-master.debian.org/changelogs/main/q/qemu/stable_changelog 2>&1 \
-        	| head -n 1 | sed -n 's,qemu (\([0-9]:\)\?\(\S\+\)).*,\2,gp')
-        curl -fkLOZ --compressed --connect-timeout 10 --retry 5 http://ftp.debian.org/debian/pool/main/q/qemu/qemu-user-static_${qus_ver}_amd64.deb
-        dpkg -x "qemu-user-static_${qus_ver}_amd64.deb" "$(pwd)/qus"
-
-        # Register qemu by official binfmt.
-        exportdir=$(pwd)/tmp
-        binfmt_ver=$(echo ${qus_ver} | sed -n 's,\(\([0-9]\+\.\)\+[0-9]\+\).*,\1,gp')
-        curl -fkLOZ --compressed --connect-timeout 10 --retry 5 https://raw.githubusercontent.com/qemu/qemu/stable-${binfmt_ver}/scripts/qemu-binfmt-conf.sh
-        chmod +x qemu-binfmt-conf.sh
-        # Modify the package name to avoid potential conflits. For example, it need the modify the package name
-        # to 'qemu-user-static' if use package 'qemu-user-static'.
-        sed -i 's/^package qemu-\$cpu$/package qemu-test-static/g' qemu-binfmt-conf.sh
-        ./qemu-binfmt-conf.sh --qemu-suffix "-static" --qemu-path "$(pwd)/qus/usr/bin" --debian --exportdir "${exportdir}" --persistent yes
-        sudo update-binfmts --importdir ${exportdir} --import
     - name: Test via Docker container
       if: matrix.runtime_test
       run: |
-        host_port=28181
-        req_url=http://127.0.0.1:${host_port}
-        webui_port=8080
-        webui_url=http://127.0.0.1:${webui_port}
-        docker_id=$(docker run -d -p 127.0.0.1:${host_port}:${webui_port} --env-file ${GITHUB_WORKSPACE}/docker_env --mount type=bind,src=$GITHUB_WORKSPACE/${SAVED_NAME},dst=/ci,readonly test-container)
-        [ -n "${docker_id}" ] || { echo "::error::Can't startup the docker!"; exit 1; }
-        end_time=$(($(date +%s) + 200))
-        while [ "${end_time}" -gt "$(date +%s)" ]; do
-        	if [ -n "$(docker ps -f id=${docker_id} -f status=running -q)" ]; then
-        		if [ -n "$(docker exec $docker_id netstat -ntul | grep ${webui_port})" ]; then
-        			sid=$(curl -is -m 10 \
-        				-H "Host: ${webui_url}" \
-        				-d 'username=admin&password=adminadmin' \
-        				${req_url}/api/v2/auth/login \
-        				| grep '^set-cookie' | sed -n 's/\S\+ SID=\([^\x0-\x1f ",;\\\x7f]\+\); .*/\1/gp' 2>&1);
-        			[ -z "$sid" ] || break;
-        		fi
+        bash ./${CUR_REPO_NAME}/docker/docker_test.sh
 
-        		sleep 1
-        	else
-        		echo "::error::The docker is not running!"
-        		break
-        	fi
-        done
-        printf "Startup delay: %ss\n" $((200 + $(date +%s) - ${end_time}))
-
-        if [ -n "$(docker ps -f id=${docker_id} -f status=running -q)" ]; then
-        	echo "::group::Process list"
-        	docker exec ${docker_id} sh -c 'top -b -n 1'
-        	echo "::endgroup::"
-        	if [ -n "$sid" ]; then
-        		echo "::group::qBittorrent info"
-        		echo "-------------------------------------------"
-        		curl -s -m 10 -H "Host: ${webui_url}" --cookie "SID=${sid}" ${req_url}/api/v2/app/version | xargs echo "qBittorrent:"
-        		curl -s -m 10 -H "Host: ${webui_url}" --cookie "SID=${sid}" ${req_url}/api/v2/app/webapiVersion | xargs echo "WebAPI:"
-        		echo "-------------------------------------------"
-        		curl -s -m 10 -H "Host: ${webui_url}" --cookie "SID=${sid}" ${req_url}/api/v2/app/buildInfo | jq -r 'to_entries[] | "\(.key): \(.value)"'
-        		echo "::endgroup::"
-        		echo "::group::qBittorrent logs"
-        		curl -s -m 10 -H "Host: ${webui_url}" --cookie "SID=${sid}" ${req_url}/api/v2/log/main?last_known_id=-1 | jq -r '.[] | "\(.timestamp | todate) \(.message)"'
-        		echo "::endgroup::"
-        		curl -s -m 10 -X POST -H "Host: ${webui_url}" --cookie "SID=${sid}" ${req_url}/api/v2/app/shutdown
-        		end_time=$(($(date +%s) + 100))
-        		while [ "${end_time}" -gt "$(date +%s)" ]; do
-        			[ -n "$(docker ps -f id=${docker_id} -f status=running -q)" ] && sleep 1 || { err_code=0; break; }
-        		done
-        	else
-        		echo "::error::Can't connect to qbittorrent!!!"
-        	fi
-        	[ -z "$(docker ps -f id=${docker_id} -f status=running -q)" ] || { echo "::warning::The docker will be forced to kill!"; docker kill ${docker_id}; }
-        fi
-
-        log_path=$(docker inspect --format {{.LogPath}} ${docker_id})
-        [ -z "${log_path}" ] || {
-        	echo "::group::Docker logs"
-        	## keep six digits
-        	#sudo jq -j '"\(.time | .[0:-1] | [.[0:19], (.[19:] | tonumber * 1e6 | round | tostring | until(length >= 6; "0" + .))] | join("."))Z \(.log)"' "${log_path}"
-        	# Padding zero
-        	sudo jq -j '"\(.time | .[0:-1] | until(length >= 29; . + "0"))Z \(.log)"' "${log_path}"
-        	echo "::endgroup::"
-        }
-        docker rm -f "${docker_id}"
-
-        exit ${err_code:-1}
     - name: Upload Release Asset
       id: upload-release
       if: needs.build-prep.outputs.draft == 'success' && steps.pack-all.outputs.pkgs == 'true'
@@ -408,8 +377,9 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         [ -n "$(find -L ${SAVED_NAME} -type f -iname '*qbittorrent*')" ] || exit 1
-        cd auto-build
+        cd ${CUR_REPO_NAME}
         gh release upload "${GITHUB_REF_NAME}" "../${SAVED_NAME}.tar.xz" --clobber
+
   pre-release:
     if: needs.build-prep.outputs.draft == 'success'
     needs: [build-prep, build-matrix]
@@ -417,11 +387,13 @@ jobs:
     steps:
     - name: Clone Current Repository
       uses: actions/checkout@v4
+
     - name: Download the sha256sum
       uses: actions/download-artifact@v3
       with:
         name: sha256sum
         path: hash
+
     - name: Edit Release Status
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
