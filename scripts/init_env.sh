@@ -86,6 +86,7 @@ if [ -n "$HEAD" ]; then
 		feeds_rev="${feeds_rev:+${feeds_rev}-}${repo_rev:?Empty revision for repo ${repo}}"
 	done
 else
-	feeds_rev=${USE_SDK_REVISION##*-}-$(curl -skLZ --compressed ${USE_SDK_URL}/feeds.buildinfo | sed -n 's/.*packages\.git^\(\w\+\)/\1/p')
+	feeds_rev="$(git ls-remote ${GITHUB_SERVER_URL}/openwrt/openwrt.git refs/tags/v${USE_SDK_VERSION}^{} | head -c 10)"
+	feeds_rev=${feeds_rev}-$(curl -skLZ --compressed https://raw.githubusercontent.com/openwrt/openwrt/v${USE_SDK_VERSION}/feeds.conf.default | sed -n 's/.*packages\.git^\(\w\+\)/\1/p' | head -c 10)
 fi
 echo "USE_FEEDS_REVISION=${feeds_rev:?Empty feed revisions}" >> $GITHUB_ENV
