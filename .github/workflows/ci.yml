@@ -323,15 +323,6 @@ jobs:
       id: download-ib
       run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_IMAGEBUILDER_URL}/${USE_IMAGEBUILDER_FILE}"
 
-    - name: Save ImageBuilder
-      if: steps.download-ib.outcome == 'success'
-      uses: actions/cache/save@v3
-      with:
-        path: |
-          ${{ env.USE_IMAGEBUILDER_FILE }}
-          ${{ env.CUR_IB_DIR_NAME }}/dl
-        key: ${{ steps.cache-ib.outputs.cache-primary-key }}
-
     - name: Generate custom rootfs docker
       if: matrix.runtime_test && (steps.cache-ib.outputs.cache-hit == 'true' || steps.download-ib.outcome == 'success')
       run: |
@@ -340,6 +331,15 @@ jobs:
         XZ_OPT='-T0' tar -xJf "${USE_IMAGEBUILDER_FILE}" --strip-components=1 -C "${CUR_IB_DIR_NAME}"
         # Generate rootfs by imagebuilder
         bash ${CUR_REPO_NAME}/scripts/build_rootfs.sh
+
+    - name: Save ImageBuilder
+      if: steps.download-ib.outcome == 'success'
+      uses: actions/cache/save@v3
+      with:
+        path: |
+          ${{ env.USE_IMAGEBUILDER_FILE }}
+          ${{ env.CUR_IB_DIR_NAME }}/dl
+        key: ${{ steps.cache-ib.outputs.cache-primary-key }}
 
     - if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER != 'true'
       run: |
