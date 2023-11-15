@@ -12,5 +12,13 @@ echo ""
 echo "Architecture: $(uname -m)"
 echo "-------------------------------------------"
 
-mkdir -p /tmp/qbittorrent
+mkdir -p /tmp/qbittorrent/qBittorrent/config
+
+cat >> /tmp/qbittorrent/qBittorrent/config/qBittorrent.conf <<EOF
+[LegalNotice]
+Accepted=true
+
+[Preferences]
+WebUI\Password_PBKDF2="@ByteArray(${Password_PBKDF2})"
+EOF
 QT_FATAL_WARNINGS=1 qbittorrent-nox --profile=/tmp/qbittorrent
