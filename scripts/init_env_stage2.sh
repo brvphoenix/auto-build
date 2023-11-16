@@ -7,7 +7,11 @@ set -eET -o pipefail
 JSON_FILE=./${CUR_LINK_TYPE}.json
 
 # QBT source and libtorrent source info
-echo USE_QBT_REF=$(jq -r '.qbittorrent.QT_VERSION?."'${CUR_QT_VERSION}'"' ${JSON_FILE}) >> $GITHUB_ENV
+if [ "${CUR_QBT_BRANCH}" = "release" ]; then
+	echo USE_QBT_REF=$(jq -r '.qbittorrent.QT_VERSION?."'${CUR_QT_VERSION}'"' ${JSON_FILE}) >> $GITHUB_ENV
+else
+	echo USE_QBT_REF=test >> $GITHUB_ENV
+fi
 
 # libtorrent
 echo USE_LIBT_HASH=$(git ls-remote -h ${GITHUB_SERVER_URL}/arvidn/libtorrent refs/heads/RC_${CUR_LIBT_VERSION} | head -c 10) >> $GITHUB_ENV

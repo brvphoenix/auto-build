@@ -5,7 +5,7 @@ set -eET -o pipefail
 # Update the release number according the tag number
 target_dir=${1:-feeds/${CUR_LOCAL_REPO_NAME:-local}/packages/net/qbittorrent}
 
-[ -f "${target_dir}/Makefile" ] || { echo "::error ::${target_dir}/Makefile doesn't not exist."; exit 1; }
+[ -f "${target_dir}/Makefile" ] || { echo "::error ::${target_dir}/Makefile doesn't not exist."; false; }
 
 if [ "${GITHUB_REF}" = "refs/tags/${GITHUB_REF_NAME}" ]; then
 	release_count=$(git ls-remote -t ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY} "${GITHUB_REF%%-*}*" | wc -l)
@@ -15,6 +15,7 @@ fi
 
 # Pathes has not been contained in the upstream.
 patch_dir=${target_dir}/patches
+[ "${CUR_QBT_BRANCH}" = "release" ] || { rm -rf ${patch_dir}/08*.patch; exit 0; }
 mkdir -p ${patch_dir}
 
 PKG_REF=release-$(sed --follow-symlinks -n 's/PKG_VERSION:=\(\w\+\)/\1/gp' ${target_dir}/Makefile)

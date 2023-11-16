@@ -54,6 +54,14 @@ on:
         - 1.2
         - 2.0
         - all
+      qbt:
+        description: 'qbittorrent branch'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+        - release
+        - master
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ format('{0}-{1}-{2}-{3}', github.event.inputs.type, github.event.inputs.target, github.event.inputs.qt, github.event.inputs.lt) }}
@@ -211,6 +219,7 @@ jobs:
       CUR_QBT_REPO_NAME: qt_repo
       CUR_SDK_DIR_NAME: build
       CUR_LOCAL_REPO_NAME: local
+      CUR_QBT_BRANCH: ${{ github.event.inputs.qbt }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
