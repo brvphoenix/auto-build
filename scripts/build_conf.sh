@@ -74,6 +74,11 @@ echo "::group::Install packages"
 echo "::endgroup::"
 
 find -L package/feeds/*/{boost,libtorrent-rasterbar,luci-app-qbittorrent,openssl,pcre2,qbittorrent,qtbase,qttools,zlib} .config \
-	-type f -print0 | sort -z | xargs -0 cat | sha256sum | awk '{print $1}' | xargs -i echo "bin-hash={}" >> $GITHUB_OUTPUT
+	-type f -print0 | sort -z | { \
+		path=$(xargs --null echo); \
+		hash=$(cat -A $path | sha256sum | awk '{print $1}'); \
+		permission=$(find $path -printf "%m\n" | sha256sum | awk '{print $1}'); \
+		echo "bin-hash=${hash}-${permission}" >> $GITHUB_OUTPUT; \
+	}
 cat package/feeds/*/{boost,openssl,pcre2,qbittorrent,zlib}/Makefile | grep '\(PKG_HASH\|PKG_MIRROR_HASH\)' | \
 	sha256sum | awk '{print $1}' | xargs -i echo "src-hash={}" >> $GITHUB_OUTPUT
