@@ -20,7 +20,7 @@ for json_file in ./*.json; do
 			}];
 			map(select(.target == $item.key) += {runtime_test: ($item.value?.RUNTIME_TEST? // false)});
 			.[] | select(.target == $item.key)
-		)] | . + $mt | unique | sort_by(.link + .target)
+		)] | . + $mt | unique | sort_by(.lt, .qt, .link, .target)
 	' ${link}.json)
 done
 
