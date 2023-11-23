@@ -1,25 +1,28 @@
 #!/bin/bash
 set -eET -o pipefail
 
-failure() {
-	echo "Failed at line $1: $2"
+docker_logs() {
+	local _docker_id=$1
+	[ -n "${_docker_id}" ] || return
 
-	[ -n "${docker_id}" ] || return
-
-	log_path=$(docker inspect --format {{.LogPath}} ${docker_id})
+	log_path=$(docker inspect --format {{.LogPath}} ${_docker_id})
 	[ -z "${log_path}" ] || {
 		echo "::group::Docker logs"
-		## keep six digits
-		#sudo jq -j '"\(.time | .[0:-1] | [.[0:19], (.[19:] | tonumber * 1e6 | round | tostring | until(length >= 6; "0" + .))] | join("."))Z \(.log)"' "${log_path}"
 		# Padding zero
 		sudo jq -j '"\(.time | .[0:-1] | until(length >= 29; . + "0"))Z \(.log)"' "${log_path}"
 		echo "::endgroup::"
 	}
-	docker rm -f "${docker_id}"
+	docker rm -f "${_docker_id}"
+}
+
+failure() {
+	echo "Failed at line $1: $2"
+	docker_logs ${docker_id}
 }
 
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
+docker_name=test-container
 host_port=28181
 req_url=http://127.0.0.1:${host_port}
 webui_port=8080
@@ -40,7 +43,7 @@ docker_id=$(docker run -d \
 	-e Password_PBKDF2=${pass_pkdf2} \
 	--env-file ${GITHUB_WORKSPACE}/docker_env \
 	--mount type=bind,src=$GITHUB_WORKSPACE/${SAVED_NAME},dst=/ci,readonly \
-	test-container)
+	${docker_name})
 
 [ -n "${docker_id}" ] || { echo "::error::Can't startup the docker!"; false; }
 
@@ -89,5 +92,7 @@ if [ -n "$(docker ps -f id=${docker_id} -f status=running -q)" ]; then
 	fi
 	[ -z "$(docker ps -f id=${docker_id} -f status=running -q)" ] || { echo "::warning::The docker will be forced to kill!"; docker kill ${docker_id}; }
 fi
+
+docker_logs ${docker_id}
 
 [ "${err_code:-1}" == 0 ] || false
