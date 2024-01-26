@@ -59,6 +59,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  actions: write
   contents: write
 
 jobs:
@@ -291,7 +292,7 @@ jobs:
       if: steps.pack-all.outputs.pkgs == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: sha256sum
+        name: sha256sum-${{ matrix.target }}-${{ matrix.link }}-${{ matrix.qt }}-${{ matrix.lt }}-${{ github.run_attempt }}
         path: ${{ env.SAVED_NAME }}.sha256sum
 
     - name: Upload Logs
@@ -381,27 +382,64 @@ jobs:
         gh release upload "${GITHUB_REF_NAME}" "../${SAVED_NAME}.tar.xz" --clobber
 
   pre-release:
-    if: needs.build-prep.outputs.draft == 'success'
     needs: [build-prep, build-matrix]
     runs-on: ubuntu-latest
     steps:
     - name: Clone Current Repository
       uses: actions/checkout@v4
 
-    - name: Download the sha256sum
-      uses: actions/download-artifact@v4
-      with:
-        name: sha256sum
-        path: hash
+    - run: npm i @actions/artifact@2.0.1
 
-    - name: Edit Release Status
+    - uses: actions/github-script@v7
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
+        githubToken: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        script: |
+          const { DefaultArtifactClient } = require('@actions/artifact');
+          const artifactClient = new DefaultArtifactClient();
+          const findBy = {
+          	token: process.env['githubToken'],
+          	workflowRunId: context.runId,
+          	repositoryOwner: context.repo.owner,
+          	repositoryName: context.repo.repo
+          }
+          const { artifacts } = await artifactClient.listArtifacts({findBy});
+          let jobs = [];
+          for (const artifact of artifacts) {
+          	if (!artifact.name.match(/sha256sum-\S+/g))
+          		continue;
+
+          	jobs.push((async () => {
+          		await artifactClient.downloadArtifact(artifact.id, {
+          			path: process.env['GITHUB_WORKSPACE'] + '/hash'
+          		});
+          		await github.rest.actions.deleteArtifact({
+          			owner: context.repo.owner,
+          			repo: context.repo.repo,
+          			artifact_id: artifact.id,
+          		});
+          	})());
+          }
+          Promise.all(jobs);
+
+    - run: |
         > sha256sums
         for sha256sum in hash/*.sha256sum; do
         	[ ! -f "${sha256sum}" ] || cat $sha256sum >> sha256sums
         done
+        cat sha256sums
+
+    - name: Upload sha256sum
+      uses: actions/upload-artifact@v4
+      with:
+        name: sha256sums
+        path: sha256sums
+
+    - name: Edit Release Status
+      if: needs.build-prep.outputs.draft == 'success'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
         gzip sha256sums
         gh release upload "${GITHUB_REF_NAME}" sha256sums.gz --clobber
         gh release edit "${GITHUB_REF_NAME}" --draft=false --prerelease
