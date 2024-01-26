@@ -31,7 +31,7 @@ on:
         - bcm53xx
         - sunxi
         - mvebu
-        - armvirt
+        - armsr
         - apm821xx
         - mpc85xx
         - all
