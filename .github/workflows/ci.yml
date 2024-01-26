@@ -93,7 +93,7 @@ jobs:
       id: create-draft
       if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         while [ "$(gh release list | cut -f 3 | grep -c '^'${GITHUB_REF_NAME}'$')" -ne 0 ]; do gh release delete "${GITHUB_REF_NAME}" -y; done
         gh release create -d --verify-tag --generate-notes -t "Release ${GITHUB_REF_NAME}" "${GITHUB_REF_NAME}"
@@ -376,7 +376,7 @@ jobs:
       id: upload-release
       if: needs.build-prep.outputs.draft == 'success' && steps.pack-all.outputs.pkgs == 'true'
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         [ -n "$(find -L ${SAVED_NAME} -type f -iname '*qbittorrent*')" ] || exit 1
         cd ${CUR_REPO_NAME}
@@ -450,7 +450,7 @@ jobs:
     - name: Edit Release Status
       if: needs.build-prep.outputs.draft == 'success'
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         gzip sha256sums
         gh release upload "${GITHUB_REF_NAME}" sha256sums.gz --clobber
