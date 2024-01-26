@@ -235,6 +235,7 @@ jobs:
 
     - name: Build the Binary Files
       if: (needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true') && steps.cache-bin.outputs.cache-hit != 'true'
+      id: build-bin
       working-directory: ./${{ env.CUR_SDK_DIR_NAME }}
       run: |
         set -o pipefail
@@ -267,7 +268,7 @@ jobs:
 
     - name: Pack all the flies
       id: pack-all
-      if: success() || failure()
+      if: (success() || failure()) && (steps.cache-bin.outputs.cache-hit == 'true' || steps.build-bin.outcome != 'skipped')
       env:
         CACHE_HIT: ${{ steps.cache-bin.outputs.cache-hit }}
       run: |
@@ -304,7 +305,7 @@ jobs:
         path: ${{ env.SAVED_NAME }}.logs.tar.xz
 
     - name: Restore Custom rootfs
-      if: matrix.runtime_test
+      if: steps.pack-all.outputs.pkgs == 'true' && matrix.runtime_test
       uses: actions/cache/restore@v4
       id: cache-rootfs-files
       with:
@@ -312,7 +313,7 @@ jobs:
         key: rootfs-${{ matrix.target }}-${{ env.USE_IMAGEBUILDER_REVISION }}${{ env.USE_ROOTFS_REVISION }}
 
     - name: Restore ImageBuilder
-      if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER == 'true'
+      if: steps.pack-all.outputs.pkgs == 'true' && matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER == 'true'
       uses: actions/cache/restore@v4
       id: cache-ib
       with:
@@ -326,7 +327,7 @@ jobs:
       run: curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_IMAGEBUILDER_URL}/${USE_IMAGEBUILDER_FILE}"
 
     - name: Generate custom rootfs docker
-      if: matrix.runtime_test && (steps.cache-ib.outputs.cache-hit == 'true' || steps.download-ib.outcome == 'success')
+      if: steps.pack-all.outputs.pkgs == 'true' && matrix.runtime_test && (steps.cache-ib.outputs.cache-hit == 'true' || steps.download-ib.outcome == 'success')
       run: |
         sha256sum --check --status ./${CUR_REPO_NAME}/imagebuilder.sha256sums || exit 1
         mkdir -p "${CUR_IB_DIR_NAME}"
@@ -343,7 +344,7 @@ jobs:
           ${{ env.CUR_IB_DIR_NAME }}/dl
         key: ${{ steps.cache-ib.outputs.cache-primary-key }}
 
-    - if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER != 'true'
+    - if: steps.pack-all.outputs.pkgs == 'true' && matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER != 'true'
       run: |
         curl -fkLOZ --compressed --connect-timeout 10 --retry 5 "${USE_ROOTFS_URL}/${USE_ROOTFS_FILE}"
         sha256sum --check --status ./${CUR_REPO_NAME}/rootfs.sha256sums || exit 1
@@ -351,24 +352,24 @@ jobs:
         XZ_OPT='-T0' tar -xf "${USE_ROOTFS_FILE}" --strip-components=1 -C ./${CUR_REPO_NAME}/docker/custom/rootfs
 
     - name: Save Custom rootfs
-      if: matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true'
+      if: steps.pack-all.outputs.pkgs == 'true' && matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: ${{ env.CUR_REPO_NAME }}/docker/custom/rootfs
         key: ${{ steps.cache-rootfs-files.outputs.cache-primary-key }}
 
     - name: Build Custom Docker Container
-      if: matrix.runtime_test
+      if: steps.pack-all.outputs.pkgs == 'true' && matrix.runtime_test
       run: |
         docker build -t test-container ./${CUR_REPO_NAME}/docker/custom
 
     - name: Register QEMU
-      if: matrix.runtime_test
+      if: steps.pack-all.outputs.pkgs == 'true' && matrix.runtime_test
       run: |
         bash ./${CUR_REPO_NAME}/scripts/register_qemu.sh
 
     - name: Test via Docker container
-      if: matrix.runtime_test
+      if: steps.pack-all.outputs.pkgs == 'true' && matrix.runtime_test
       run: |
         bash ./${CUR_REPO_NAME}/docker/docker_test.sh
 

@@ -122,7 +122,7 @@ SAVED_NAME="${target_arch}-${CUR_LINK_TYPE}-qt${CUR_QT_VERSION}-lt_${CUR_LIBT_VE
 # Add SAVED_NAME to the environment variables
 echo "SAVED_NAME=${SAVED_NAME}" >> $GITHUB_ENV
 
-[ ! -d "${PKGS_DIR}" -o ! -d "${KEY_DIR}" ] || {
+[ ! -f ${PKGS_DIR}/qbittorrent*.ipk ] || {
 	echo "pkgs=true" >> $GITHUB_OUTPUT
 	cd ..
 	ln -sf "${SAVE_ROOT_DIR}" "${SAVED_NAME}"
