@@ -34,6 +34,7 @@ on:
         - armsr
         - apm821xx
         - mpc85xx
+        - sifiveu
         - all
       qt:
         description: 'QT version'

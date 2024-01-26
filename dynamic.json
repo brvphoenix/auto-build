@@ -58,6 +58,11 @@
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "mpc8548",
 			"USE_IMAGEBUILDER": true
+		},
+		"sifiveu-generic": {
+			"RUNTIME_TEST": true,
+			"USE_QEMU_CPU": "sifive-u54",
+			"USE_IMAGEBUILDER": true
 		}
 	}
 }
