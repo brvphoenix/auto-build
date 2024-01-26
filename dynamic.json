@@ -11,10 +11,10 @@
 	},
 	"openwrt": {
 		"USE_DOWNLOAD_SERVER": "https://downloads.openwrt.org",
-		"USE_SDK_VERSION": "22.03-SNAPSHOT",
-		"USE_SDK_KEYRING": "CD54E82DADB3684D.asc",
-		"USE_ROOTFS_VERSION": "22.03-SNAPSHOT",
-		"USE_ROOTFS_KEYRING": "CD54E82DADB3684D.asc",
+		"USE_SDK_VERSION": "23.05-SNAPSHOT",
+		"USE_SDK_KEYRING": "626471F1.asc",
+		"USE_ROOTFS_VERSION": "23.05-SNAPSHOT",
+		"USE_ROOTFS_KEYRING": "626471F1.asc",
 		"x86-64": {
 			"RUNTIME_TEST": true
 		},
@@ -41,7 +41,7 @@
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "cortex-a9"
 		},
-		"armvirt-32": {
+		"armsr-armv7": {
 			"RUNTIME_TEST": true,
 			"USE_QEMU_CPU": "cortex-a15"
 		},
