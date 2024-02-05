@@ -75,39 +75,108 @@ jobs:
   windows:
     if: github.event.inputs.os != 'linux'
     runs-on: windows-latest
+    env:
+      CUR_REPO_NAME: auto-build
+      CUR_QBT_REPO_NAME: qt_repo
+      CUR_SCRIPTS_REPO_NAME: build-scripts
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+    - name: Checkout scripts' repository
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ github.repository_owner }}/build-scripts
+        fetch-depth: 1
+        token: ${{ secrets.SUPER_TOKEN }}
+        path: ${{ env.CUR_SCRIPTS_REPO_NAME }}
+
+    - name: Clone qbittorrent
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ github.repository_owner }}/SomePackages
+        fetch-depth: 0
+        token: ${{ secrets.SUPER_TOKEN }}
+        path: ${{ env.CUR_QBT_REPO_NAME }}
+
     - name: Cache DL
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: D:\build\dl
-        key: win-dl-${{ hashFiles(format('{0}\README.md', github.workspace)) }}
+        key: win-dl-${{ hashFiles(format('{0}\{1}\windows\**', github.workspace, env.CUR_SCRIPTS_REPO_NAME)) }}
         restore-keys: win-dl-
+        save-always: true
+
+    - name: Cache builds
+      uses: actions/cache@v4
+      with:
+        path: D:\build\cache
+        key: win-cache-${{ hashFiles(format('{0}\{1}\windows\**', github.workspace, env.CUR_SCRIPTS_REPO_NAME)) }}
+        restore-keys: win-cache-
+        save-always: true
+
     - shell: cmd
-      working-directory: c:\
+      working-directory: C:\
       run: |
+        CALL "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" amd64
+
         IF EXIST "D:\build\dl" (
             MKDIR "C:\build\dl"
             ROBOCOPY /MOVE /E /XX "D:\build\dl" "C:\build\dl"
         )
-        CALL "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" amd64
+
+        IF EXIST "D:\build\cache" (
+            MKDIR "C:\build\cache"
+            ROBOCOPY /MOVE /E /XX "D:\build\cache" "C:\build\cache"
+        )
+
         MKDIR build
-        COPY ${{ github.workspace }}\build.bat build
+        ROBOCOPY /MOVE /E /XX "${{ github.workspace }}\${{ env.CUR_SCRIPTS_REPO_NAME }}\windows" build
+        MKDIR build\batch\libtorrent-rasterbar\patches
+        ROBOCOPY /MOVE /E /XX "${{ github.workspace }}\${{ env.CUR_QBT_REPO_NAME }}\packages\libs\libtorrent-rasterbar\patches" build\batch\libtorrent-rasterbar\patches
+        MKDIR build\batch\qbittorrent\patches
+        ROBOCOPY /MOVE /E /XX "${{ github.workspace }}\${{ env.CUR_QBT_REPO_NAME }}\packages\net\qbittorrent\patches" build\batch\qbittorrent\patches
+
+        @echo off
+
+        SET _QBT_VER=""
+        FOR /F "tokens=1,2,3 delims== " %%a IN (' find "=" ^< "build\batch\qbittorrent\build.bat" ') do (
+            IF "%%~a"=="SET" IF "%%~b"=="_qbt_ver" (
+                SET _QBT_VER=%%~c
+            )
+        )
+
+        curl -kLZ -o build\batch\qbittorrent\patches\0001.patch https://github.com/brvphoenix/qBittorrent/compare/release-%_QBT_VER%...stable_backup.patch
+        DEL /Q /S build\batch\qbittorrent\patches\0806-filelogger.patch
+
         CD build
-        CALL build.bat
+        DEL /Q /S C:\build\cache\qbittorrent.7z
+        SET USE_CACHE=1
+        CALL build.bat zlib openssl boost qtbase qttools qtsvg libtorrent-rasterbar qbittorrent
         CD ..
+
         MKDIR pack
         COPY build\stage\usr\bin\qbittorrent.* pack
-        IF NOT EXIST "D:\build\dl" ( MKDIR "D:\build\dl" )
+
+        IF NOT EXIST "D:\build\dl" MKDIR "D:\build\dl"
         ROBOCOPY /MOVE /E "C:\build\dl" "D:\build\dl"
-        if %ERRORLEVEL% LEQ 7 set ERRORLEVEL=0
-    - name: Upload build
-      uses: actions/upload-artifact@v3
+
+        IF NOT EXIST "D:\build\cache" MKDIR "D:\build\cache"
+        ROBOCOPY /MOVE /E "C:\build\cache" "D:\build\cache"
+
+        IF %ERRORLEVEL% LEQ 7 SET ERRORLEVEL=0
+
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
       with:
-        name: windows_x64
+        name: windows_x64-logs-${{ github.run_attempt }}
+        path: C:\build\logs
+        if-no-files-found: error
+
+    - name: Upload build
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows_x64-pkgs-${{ github.run_attempt }}
         path: c:\pack
         if-no-files-found: error
+
   build-prep:
     if: github.event.inputs.os != 'windows'
     runs-on: ubuntu-latest
