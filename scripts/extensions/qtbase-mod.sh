@@ -6,8 +6,16 @@ target_dir=${1:-feeds/${CUR_LOCAL_REPO_NAME:-local}/packages/qt${CUR_QT_VERSION}
 if [ -f "${target_dir}/Makefile" ]; then
 	if [ "${CUR_QT_VERSION}" = "5" ]; then
 		# Make qmake compile in parallel (should be deleted when update to Qt6)
-		mv ../${CUR_REPO_NAME}/rsync/test.mk ${target_dir}
-		sed --follow-symlinks -i '/define Build\/Compile/i include ./test.mk' ${target_dir}/Makefile
+		cat <<-'EOF' | sed 's/^    //g' | sed -i '/define Build\/Compile/{
+			r/dev/stdin
+			:a;N;/^endef/!ba;N
+		}' ${target_dir}/Makefile
+		    define Build/Configure
+		    	$(SED) 's;\(cd "\$$$$\w*\/qmake".*"\$$$$\w*"\);\1 "\-j$(NPROC)";g' $(PKG_BUILD_DIR)/configure
+		    	$(call Build/Configure/Default)
+		    endef
+		
+		EOF
 
 		# Only needed when use openssl 3.0.x
 		sed --follow-symlinks -i 's/\(EXTRA_INCLUDE_LIBS =\)/\1 \\\n\tOPENSSL_LIBS="-lssl -lcrypto -latomic"/' ${target_dir}/Makefile
