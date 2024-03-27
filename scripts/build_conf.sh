@@ -24,13 +24,7 @@ sed \
 echo "src-cpy ${CUR_LOCAL_REPO_NAME} ${GITHUB_WORKSPACE}/${CUR_QBT_REPO_NAME}" >> feeds.conf
 
 echo "::group::Update feeds"
-if [ "${IGNORE_UPDATE_FEEDS}" != "true" ]; then
-	# Sync with the source
-	./scripts/feeds update -f base packages luci ${CUR_LOCAL_REPO_NAME}
-else
-	# Update custom feeds
-	./scripts/feeds update ${CUR_LOCAL_REPO_NAME}
-fi
+./scripts/feeds update -f base packages luci ${CUR_LOCAL_REPO_NAME}
 echo "::endgroup::"
 
 # Sync openssl module

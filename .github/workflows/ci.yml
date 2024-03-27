@@ -155,16 +155,6 @@ jobs:
         mkdir -p "${CUR_SDK_DIR_NAME}"
         XZ_OPT='-T0' tar -xJf "${USE_SDK_FILE}" --strip-components=1 -C "${CUR_SDK_DIR_NAME}"
 
-    - name: Restore feeds
-      id: cache-feeds
-      uses: actions/cache/restore@v4
-      with:
-        path: ${{ env.CUR_SDK_DIR_NAME }}/feeds/*
-        key: feeds-${{ matrix.link }}-${{ env.USE_FEEDS_REVISION }}
-        restore-keys: |
-          feeds-${{ matrix.link }}-
-          feeds-
-
     - name: Clone qbittorrent
       uses: actions/checkout@v4
       with:
@@ -185,18 +175,9 @@ jobs:
 
     - name: Prepare building
       id: pre-build
-      env:
-        IGNORE_UPDATE_FEEDS: ${{ steps.cache-feeds.outputs.cache-hit }}
       working-directory: ./${{ env.CUR_SDK_DIR_NAME }}
       run: |
         bash ../${CUR_REPO_NAME}/scripts/build_conf.sh
-
-    - name: Save feeds
-      if: steps.cache-feeds.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
-      with:
-        path: ${{ env.CUR_SDK_DIR_NAME }}/feeds/*
-        key: ${{ steps.cache-feeds.outputs.cache-primary-key }}
 
     - name: Restore binary
       if: needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true'
