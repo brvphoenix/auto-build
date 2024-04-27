@@ -46,7 +46,7 @@ generate_variant() {
 	. $GITHUB_ENV
 }
 
-sdk_pattern="openwrt-sdk-.*.Linux-x86_64.tar.xz"
+sdk_pattern="openwrt-sdk-.*.Linux-x86_64.tar.*"
 generate_variant "sdk" "${USE_SDK_VERSION}" "${USE_SDK_KEYRING}" "${sdk_pattern}"
 
 if [ "${RUNTIME_TEST}" = "true" ]; then

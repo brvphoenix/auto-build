@@ -153,7 +153,17 @@ jobs:
     - run: |
         sha256sum --check --status ./${CUR_REPO_NAME}/sdk.sha256sums || exit 1
         mkdir -p "${CUR_SDK_DIR_NAME}"
-        XZ_OPT='-T0' tar -xJf "${USE_SDK_FILE}" --strip-components=1 -C "${CUR_SDK_DIR_NAME}"
+        case ${USE_SDK_FILE} in
+        *.tar.xz)
+        	tar -I 'xz -T0' -xf "${USE_SDK_FILE}" --strip-components=1 -C "${CUR_SDK_DIR_NAME}"
+        	;;
+        *.tar.zst)
+        	tar -I 'zstd -T0' -xf "${USE_SDK_FILE}" --strip-components=1 -C "${CUR_SDK_DIR_NAME}"
+        	;;
+        *)
+        	printf "Unsupported format: '%s'!" ${USE_SDK_FILE#*.} && exit 1
+        	;;
+        esac
 
     - name: Clone qbittorrent
       uses: actions/checkout@v4
@@ -312,7 +322,18 @@ jobs:
       run: |
         sha256sum --check --status ./${CUR_REPO_NAME}/imagebuilder.sha256sums || exit 1
         mkdir -p "${CUR_IB_DIR_NAME}"
-        XZ_OPT='-T0' tar -xJf "${USE_IMAGEBUILDER_FILE}" --strip-components=1 -C "${CUR_IB_DIR_NAME}"
+        case ${USE_IMAGEBUILDER_FILE} in
+        *.tar.xz)
+        	tar -I 'xz -T0' -xf "${USE_IMAGEBUILDER_FILE}" --strip-components=1 -C "${CUR_IB_DIR_NAME}"
+        	;;
+        *.tar.zst)
+        	tar -I 'zstd -T0' -xf "${USE_IMAGEBUILDER_FILE}" --strip-components=1 -C "${CUR_IB_DIR_NAME}"
+        	;;
+        *)
+        	printf "Unsupported format: '%s'!" ${USE_IMAGEBUILDER_FILE#*.} && exit 1
+        	;;
+        esac
+
         # Generate rootfs by imagebuilder
         bash ${CUR_REPO_NAME}/scripts/build_rootfs.sh
 
