@@ -3,9 +3,18 @@ set -eET -o pipefail
 . ${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/scripts/build_default.sh
 
 # Update the release number according the tag number
-target_dir=${1:-feeds/${CUR_LOCAL_REPO_NAME:-local}/packages/net/qbittorrent}
-
-[ -f "${target_dir}/Makefile" ] || { echo "::error ::${target_dir}/Makefile doesn't not exist."; exit 1; }
+if [ -n "$1" ]; then
+	target_dir=$1
+elif [ -f "${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/rsync/${CUR_LINK_TYPE}/qbittorrent/Makefile" ]; then
+	target_dir=${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/rsync/${CUR_LINK_TYPE}/qbittorrent
+elif [ -f "${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/rsync/common/qbittorrent/Makefile" ]; then
+	target_dir=${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/rsync/common/qbittorrent
+elif [ -f "feeds/${CUR_LOCAL_REPO_NAME:-local}/packages/net/qbittorrent/Makefile" ]; then
+	target_dir=feeds/${CUR_LOCAL_REPO_NAME:-local}/packages/net/qbittorrent
+else
+	echo "::error ::${target_dir}/Makefile doesn't not exist.";
+	exit 1
+fi
 
 if [ "${GITHUB_REF}" = "refs/tags/${GITHUB_REF_NAME}" ]; then
 	release_count=$(git ls-remote -t ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY} "${GITHUB_REF%%-*}*" | wc -l)
