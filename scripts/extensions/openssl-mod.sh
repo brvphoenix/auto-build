@@ -16,9 +16,9 @@ else
 	exit 1
 fi
 
-	sed --follow-symlinks -i \
-		-e '/define Build\/Configure/a\$(SED) '\''/^my @disablables = (/{:a;N;/ *);/!ba;/"apps"/!{s/\\(\\( *\\));\\)/\\2"apps",\\n\\1/g;};}'\'' $(PKG_BUILD_DIR)/Configure' \
-		${target_dir}/Makefile
+sed --follow-symlinks -i \
+	-e '/define Build\/Configure/a\$(SED) '\''/^my @disablables = (/{:a;N;/ *);/!ba;/"apps"/!{s/\\(\\( *\\));\\)/\\2"apps",\\n\\1/g;};}'\'' $(PKG_BUILD_DIR)/Configure' \
+	${target_dir}/Makefile
 
 if [ "${CUR_LINK_TYPE}" = "static" ]; then
 	if [ "${CUR_LIBT_VERSION}" = "2_0" ]; then
