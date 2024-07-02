@@ -177,7 +177,16 @@ jobs:
     - if: env.USE_LIBT_REF != '' && env.USE_LIBT_REF != env.USE_QBT_REF
       run: |
         cd ${CUR_QBT_REPO_NAME}
-        git restore -s origin/${USE_LIBT_REF} -- packages/libs/libtorrent-rasterbar
+        if git show-ref -q --verify "refs/remotes/origin/${USE_LIBT_REF}" 2>/dev/null; then
+            commitid=$(git show-ref -s "refs/remotes/origin/${USE_LIBT_REF}")
+        elif git show-ref -q --verify "refs/tags/${USE_LIBT_REF}" 2>/dev/null; then
+            commitid=$(git show-ref -s "refs/tags/${USE_LIBT_REF}")
+        elif git rev-parse --verify "${USE_LIBT_REF}^{commit}" >/dev/null 2>&1; then
+            commitid=${USE_LIBT_REF}
+        else
+            exit 1
+        fi
+        git restore -s ${commitid} -- packages/libs/libtorrent-rasterbar
 
     - name: Prepare modified packages
       run: |
