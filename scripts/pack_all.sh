@@ -5,7 +5,7 @@ set -eET -o pipefail
 
 [ -d "${CUR_SDK_DIR_NAME}" ] && cd ${CUR_SDK_DIR_NAME} || { echo "Not exist '${CUR_SDK_DIR_NAME}' directory"; exit 0; }
 
-target_arch=$(perl ./scripts/dump-target-info.pl targets 2>/dev/null | grep "${CUR_TARGET_NAME//-/\/}" | cut -d ' ' -f 2)
+target_arch=$(perl ./scripts/dump-target-info.pl targets 2>/dev/null | grep "^${CUR_TARGET_NAME//-/\/}\b" | cut -d ' ' -f 2)
 
 SAVE_ROOT_DIR=${GITHUB_WORKSPACE}/qbittorrent_${CUR_TARGET_NAME}
 PKGS_DIR=${SAVE_ROOT_DIR}/pkgs
