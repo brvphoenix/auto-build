@@ -13,16 +13,14 @@ set -eET -o pipefail
 mkdir -p qemu qemu/qus qemu/tmp
 cd qemu
 
-curl -ksLOZ http://ftp.debian.org/debian/dists/bookworm/main/binary-amd64/Packages.xz
-xz -d Packages.xz
-qus_ver=$(sed -n '/Package: qemu-user-static/{:a;n;/Version: \S\+/!ba;s/Version: 1:\(\S\+\)/\1/p}' Packages)
+qus_ver=$(curl -ksfL https://sources.debian.org/api/src/qemu | jq -r '.versions[] | select(.suites[] == "bookworm-backports") | .version | split(":") | .[-1]')
 
 curl -fkLOZ --compressed --connect-timeout 10 --retry 5 http://ftp.debian.org/debian/pool/main/q/qemu/qemu-user-static_${qus_ver}_amd64.deb
 dpkg -x "qemu-user-static_${qus_ver}_amd64.deb" "$(pwd)/qus"
 
 # Register qemu by official binfmt.
 exportdir=$(pwd)/tmp
-binfmt_ver=$(echo ${qus_ver} | sed -n 's,\(\([0-9]\+\.\)\+[0-9]\+\).*,\1,gp')
+binfmt_ver=$(echo ${qus_ver} | sed -n 's,\([0-9]\+\.[0-9]\+\).*,\1,gp')
 curl -fkLOZ --compressed --connect-timeout 10 --retry 5 https://raw.githubusercontent.com/qemu/qemu/stable-${binfmt_ver}/scripts/qemu-binfmt-conf.sh
 chmod +x qemu-binfmt-conf.sh
 
