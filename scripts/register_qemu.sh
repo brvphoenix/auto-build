@@ -13,7 +13,8 @@ set -eET -o pipefail
 mkdir -p qemu qemu/qus qemu/tmp
 cd qemu
 
-qus_ver=$(curl -ksfL https://sources.debian.org/api/src/qemu | jq -r '.versions[] | select(.suites[] == "bookworm-backports") | .version | split(":") | .[-1]')
+codename=$(curl -ksfL http://ftp.debian.org/debian/dists/stable/InRelease | grep 'Codename:' | cut -d' ' -f2)
+qus_ver=$(curl -ksfL https://sources.debian.org/api/src/qemu | jq -r --arg codename "$codename" '.versions | map(select(.suites[] | contains($codename))) | .[0].version | split(":") | .[-1]')
 
 curl -fkLOZ --compressed --connect-timeout 10 --retry 5 http://ftp.debian.org/debian/pool/main/q/qemu/qemu-user-static_${qus_ver}_amd64.deb
 dpkg -x "qemu-user-static_${qus_ver}_amd64.deb" "$(pwd)/qus"
