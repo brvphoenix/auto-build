@@ -4,8 +4,8 @@
 [![GitHub Latest Releases](https://img.shields.io/github/downloads/brvphoenix/auto-build/latest/total)](https://github.com/brvphoenix/auto-build/releases/latest)
 [![Lastest Release](https://img.shields.io/github/v/release/brvphoenix/auto-build.svg?logo=github&cacheSeconds=10&label=latest)](https://github.com/brvphoenix/auto-build/releases/latest)
 
-## Last updated time: 2024-10-02 12:51:25 +0000
-[ChangeLog](https://github.com/qbittorrent/qBittorrent/blob/v4_6_x/Changelog)
+## Last updated time: 2024-10-03 07:42:58 +0000
+[ChangeLog](https://github.com/qbittorrent/qBittorrent/blob/v5_0_x/Changelog)
 
 ## Depends (dynamic / static)
 * Boost 1.82.0 / 1.86.0

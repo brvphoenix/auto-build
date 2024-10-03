@@ -36,15 +36,6 @@ on:
         - mpc85xx
         - sifiveu
         - all
-      qt:
-        description: 'QT version'
-        required: true
-        default: 'all'
-        type: choice
-        options:
-        - 5
-        - 6
-        - all
       lt:
         description: 'libtorrent branch'
         required: true
