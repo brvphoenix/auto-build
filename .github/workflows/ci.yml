@@ -149,7 +149,7 @@ jobs:
         CD build
         DEL /Q /S C:\build\cache\qbittorrent.7z
         SET USE_CACHE=1
-        CALL build.bat zlib openssl boost qtbase qttools qtsvg libtorrent-rasterbar qbittorrent
+        CALL build.bat zlib openssl qtbase qttools 
         CD ..
 
         MKDIR pack
