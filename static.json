@@ -10,10 +10,10 @@
 	},
 	"openwrt": {
 		"USE_DOWNLOAD_SERVER": "https://downloads.cdn.openwrt.org",
-		"USE_SDK_VERSION": "snapshots",
-		"USE_SDK_KEYRING": "626471F1.asc",
-		"USE_ROOTFS_VERSION": "23.05-SNAPSHOT",
-		"USE_ROOTFS_KEYRING": "626471F1.asc",
+		"USE_SDK_VERSION": "24.10-SNAPSHOT",
+		"USE_SDK_KEYRING": "0x1D53D1877742E911.asc",
+		"USE_ROOTFS_VERSION": "24.10-SNAPSHOT",
+		"USE_ROOTFS_KEYRING": "0x1D53D1877742E911.asc",
 		"x86-64": {
 			"RUNTIME_TEST": true
 		},

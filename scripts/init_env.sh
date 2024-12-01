@@ -31,7 +31,7 @@ generate_variant() {
 	[ -f "${version}.sha256sums.asc" ] || curl -ksLZ --compressed -o "${version}.sha256sums.asc" ${download_url}/sha256sums.asc
 
 	# Verify the sha256sum with sha256sum.asc
-	[ -f "${keyring}" ] || curl -fskLOZ --compressed --connect-timeout 10 --retry 5 https://raw.githubusercontent.com/openwrt/docker/main/keys/${keyring}
+	[ -f "${keyring}" ] || curl -fskLOZ --compressed --connect-timeout 10 --retry 5 https://raw.githubusercontent.com/openwrt/docker/refs/heads/main/keys/${keyring}
 	gpg --import "${keyring}"
 	gpg --with-fingerprint --verify ${version}.sha256sums.asc ${version}.sha256sums
 
