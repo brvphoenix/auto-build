@@ -53,7 +53,7 @@ if [ "${RUNTIME_TEST}" = "true" ]; then
 	[ -n "${USE_QEMU_CPU}" ] && echo "QEMU_CPU=${USE_QEMU_CPU}" >> ${GITHUB_WORKSPACE}/docker_env || touch ${GITHUB_WORKSPACE}/docker_env
 
 	if [ "${USE_IMAGEBUILDER}" = 'true' ]; then
-		imagebuilder_pattern="openwrt-imagebuilder-.*.Linux-x86_64.tar.xz"
+		imagebuilder_pattern="openwrt-imagebuilder-.*.Linux-x86_64.tar.*"
 		generate_variant "imagebuilder" "${USE_ROOTFS_VERSION}" "${USE_ROOTFS_KEYRING}" "${imagebuilder_pattern}"
 	else
 		rootfs_pattern="openwrt-.*${CUR_TARGET_NAME}-.*rootfs.tar.gz"
