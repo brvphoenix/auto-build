@@ -13,11 +13,11 @@ set -eET -o pipefail
 mkdir -p qemu qemu/qus qemu/tmp
 cd qemu
 
-codename=$(curl -ksfL http://ftp.debian.org/debian/dists/stable/InRelease | grep 'Codename:' | cut -d' ' -f2)
+codename=$(curl -ksfL http://ftp.debian.org/debian/dists/testing/InRelease | grep 'Codename:' | cut -d' ' -f2)
 qus_ver=$(curl -ksfL https://sources.debian.org/api/src/qemu | jq -r --arg codename "$codename" '.versions | map(select(.suites[] | contains($codename))) | .[0].version | split(":") | .[-1]')
 
-curl -fkLOZ --compressed --connect-timeout 10 --retry 5 http://ftp.debian.org/debian/pool/main/q/qemu/qemu-user-static_${qus_ver}_amd64.deb
-dpkg -x "qemu-user-static_${qus_ver}_amd64.deb" "$(pwd)/qus"
+curl -fkLOZ --compressed --connect-timeout 10 --retry 5 http://ftp.debian.org/debian/pool/main/q/qemu/qemu-user_${qus_ver}_amd64.deb
+dpkg -x "qemu-user_${qus_ver}_amd64.deb" "$(pwd)/qus"
 
 # Register qemu by official binfmt.
 exportdir=$(pwd)/tmp
@@ -28,5 +28,5 @@ chmod +x qemu-binfmt-conf.sh
 # Modify the package name to avoid potential conflits. For example, it need the modify the package name
 # to 'qemu-user-static' if use package 'qemu-user-static'.
 sed -i 's/^package qemu-\$cpu$/package qemu-test-static/g' qemu-binfmt-conf.sh
-./qemu-binfmt-conf.sh --qemu-suffix "-static" --qemu-path "$(pwd)/qus/usr/bin" --debian --exportdir "${exportdir}" --persistent yes
+./qemu-binfmt-conf.sh --qemu-path "$(pwd)/qus/usr/bin" --debian --exportdir "${exportdir}" --persistent yes
 sudo update-binfmts --importdir ${exportdir} --import
