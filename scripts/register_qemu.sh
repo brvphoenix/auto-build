@@ -22,7 +22,7 @@ dpkg -x "qemu-user_${qus_ver}_amd64.deb" "$(pwd)/qus"
 # Register qemu by official binfmt.
 exportdir=$(pwd)/tmp
 binfmt_ver=$(echo ${qus_ver} | sed -n 's,\([0-9]\+\.[0-9]\+\).*,\1,gp')
-curl -fkLOZ --compressed --connect-timeout 10 --retry 5 https://raw.githubusercontent.com/qemu/qemu/stable-${binfmt_ver}/scripts/qemu-binfmt-conf.sh
+curl -fkLOZ --compressed --connect-timeout 10 --retry 5 https://raw.githubusercontent.com/qemu/qemu/refs/heads/stable-${binfmt_ver}/scripts/qemu-binfmt-conf.sh
 chmod +x qemu-binfmt-conf.sh
 
 # Modify the package name to avoid potential conflits. For example, it need the modify the package name
