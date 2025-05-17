@@ -49,7 +49,7 @@ else
 		cd ${PKGS_DIR}
 		${STAGING_DIR_HOST}/bin/openssl ecparam -name prime256v1 -genkey -noout -out ${BUILD_KEY_APK_SEC}
 		${STAGING_DIR_HOST}/bin/openssl ec -in ${BUILD_KEY_APK_SEC} -pubout > ${BUILD_KEY_APK_PUB}
-
+ 		ls *.apk >/dev/null 2>&1 && {
 		${STAGING_DIR_HOST}/bin/apk mkndx \
 			--allow-untrusted \
 			--root ${TOPDIR} \
@@ -57,6 +57,7 @@ else
 			--sign ${BUILD_KEY_APK_SEC} \
 			--output packages.adb \
 			*.apk
+		} || touch packages.adb
 		cp ${BUILD_KEY_APK_PUB} "${KEY_DIR}"
 		cd -
 		fingerprint=${BUILD_KEY_APK_PUB##*/}
