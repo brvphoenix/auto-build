@@ -6,7 +6,7 @@ sh /ci/install.sh install qbittorrent
 cat /etc/banner
 
 echo "-------------------------------------------"
-opkg print-architecture
+command -v opkg 2>&1 >>/dev/null && opkg print-architecture || apk --print-arch
 echo "-------------------------------------------"
 echo ""
 echo "Architecture: $(uname -m)"
