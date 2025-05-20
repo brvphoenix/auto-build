@@ -102,7 +102,6 @@ if [ "${CUR_LINK_TYPE}" = "static" ]; then
 	    		cp ${script_dir}/key/$fingerprint /etc/apk/keys
 	    		mkdir -p /tmp/.qbt/apk/repositories.d
 	    		echo "${script_dir}/pkgs/packages.adb" > /tmp/.qbt/apk/repositories.d/customfeeds.list
-	    		cat /tmp/.qbt/apk/repositories.d/customfeeds.list
 
 	    		pkg_arch=$(apk --print-arch)
 
