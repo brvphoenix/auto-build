@@ -276,21 +276,21 @@ jobs:
 
     - name: Upload Pkgs
       if: needs.build-prep.outputs.draft != 'success' && steps.pack-all.outputs.pkgs == 'true'
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ matrix.target }}-${{ matrix.link }}-qt${{ matrix.qt }}-lt_${{ matrix.lt }}-pkgs_${{ github.run_attempt }}
         path: ${{ env.SAVED_NAME }}.tar.xz
 
     - name: Upload sha256sums
       if: steps.pack-all.outputs.pkgs == 'true'
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: sha256sum-${{ matrix.target }}-${{ matrix.link }}-${{ matrix.qt }}-${{ matrix.lt }}-${{ github.run_attempt }}
         path: ${{ env.SAVED_NAME }}.sha256sum
 
     - name: Upload Logs
       if: (success() || failure()) && steps.pack-all.outputs.logs == 'true'
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ matrix.target }}-${{ matrix.link }}-qt${{ matrix.qt }}-lt_${{ matrix.lt }}-logs_${{ github.run_attempt }}
         path: ${{ env.SAVED_NAME }}.logs.tar.xz
@@ -446,7 +446,7 @@ jobs:
         cat sha256sums | sed 's/^/    /g' >> $GITHUB_STEP_SUMMARY
 
     - name: Upload sha256sum
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: sha256sums
         path: sha256sums
