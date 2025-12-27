@@ -125,7 +125,7 @@ jobs:
         bash ./scripts/init_env.sh
 
     - name: Restore SDK
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       id: cache-sdk
       with:
         path: ./${{ env.USE_SDK_FILE }}
@@ -136,7 +136,7 @@ jobs:
 
     - name: Save SDK
       if: steps.cache-sdk.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v5
       with:
         path: ./${{ env.USE_SDK_FILE }}
         key: ${{ steps.cache-sdk.outputs.cache-primary-key }}
@@ -192,7 +192,7 @@ jobs:
     - name: Restore binary
       if: needs.build-prep.outputs.draft == 'success' || github.event.inputs.build == 'true'
       id: cache-bin
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       with:
         path: |
           qbittorrent_${{ matrix.target }}
@@ -202,7 +202,7 @@ jobs:
     - name: Restore downloaded source files (exclude Qt)
       if: steps.cache-bin.outcome == 'success' && steps.cache-bin.outputs.cache-hit != 'true'
       id: restore-dl
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       with:
         path: |
           ${{ env.CUR_SDK_DIR_NAME }}/dl/*
@@ -217,7 +217,7 @@ jobs:
     - name: Restore Qt source
       if: steps.cache-bin.outcome == 'success' && steps.cache-bin.outputs.cache-hit != 'true'
       id: restore-qt
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       with:
         path: |
           ${{ env.CUR_SDK_DIR_NAME }}/dl/qtbase-*-src-${{ steps.pre-build.outputs.qt-version }}.tar.xz
@@ -239,7 +239,7 @@ jobs:
 
     - name: Save downloaded source files (exclude Qt)
       if: steps.restore-dl.outcome == 'success' && steps.restore-dl.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v5
       with:
         path: |
           ${{ env.CUR_SDK_DIR_NAME }}/dl/*
@@ -250,7 +250,7 @@ jobs:
 
     - name: Save Qt source
       if: steps.restore-qt.outcome == 'success' && steps.restore-qt.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v5
       with:
         path: |
           ${{ env.CUR_SDK_DIR_NAME }}/dl/qtbase-*-src-${{ steps.pre-build.outputs.qt-version }}.tar.xz
@@ -267,7 +267,7 @@ jobs:
 
     - name: Save binary
       if: steps.cache-bin.outcome == 'success' && steps.cache-bin.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v5
       with:
         path: |
           qbittorrent_${{ matrix.target }}
@@ -297,7 +297,7 @@ jobs:
 
     - name: Restore Custom rootfs
       if: steps.pack-all.outputs.pkgs == 'true' && matrix.runtime_test
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       id: cache-rootfs-files
       with:
         path: ${{ env.CUR_REPO_NAME }}/docker/custom/rootfs
@@ -305,7 +305,7 @@ jobs:
 
     - name: Restore ImageBuilder
       if: steps.pack-all.outputs.pkgs == 'true' && matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true' && env.USE_IMAGEBUILDER == 'true'
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       id: cache-ib
       with:
         path: |
@@ -339,7 +339,7 @@ jobs:
 
     - name: Save ImageBuilder
       if: steps.download-ib.outcome == 'success'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v5
       with:
         path: |
           ${{ env.USE_IMAGEBUILDER_FILE }}
@@ -355,7 +355,7 @@ jobs:
 
     - name: Save Custom rootfs
       if: steps.pack-all.outputs.pkgs == 'true' && matrix.runtime_test && steps.cache-rootfs-files.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v5
       with:
         path: ${{ env.CUR_REPO_NAME }}/docker/custom/rootfs
         key: ${{ steps.cache-rootfs-files.outputs.cache-primary-key }}
