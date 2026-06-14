@@ -15,9 +15,10 @@ cd qemu
 
 codename=$(curl -ksfL http://ftp.debian.org/debian/dists/bookworm/InRelease | grep 'Codename:' | cut -d' ' -f2)
 qus_ver=$(curl -ksfL https://sources.debian.org/api/src/qemu | jq -r --arg codename "$codename" '.versions | map(select(.suites[] | . == $codename)) | .[0].version | split(":") | .[-1]')
+deb_fullname=$(curl -s http://ftp.debian.org/debian/pool/main/q/qemu/ |  grep -oE "qemu-user-static_$(echo ${qus_ver} | sed 's/\(\.\|\+\)/\\\1/g')\+b[0-9]+\_amd64\.deb" | sort -V | uniq | tail -1)
 
-curl -fkLOZ --verbose --compressed --connect-timeout 10 --retry 5 http://ftp.debian.org/debian/pool/main/q/qemu/qemu-user-static_${qus_ver}_amd64.deb
-dpkg -x "qemu-user-static_${qus_ver}_amd64.deb" "$(pwd)/qus"
+curl -fkLOZ --verbose --compressed --connect-timeout 10 --retry 5 http://ftp.debian.org/debian/pool/main/q/qemu/${deb_fullname}
+dpkg -x "${deb_fullname}" "$(pwd)/qus"
 
 # Register qemu by official binfmt.
 exportdir=$(pwd)/tmp
