@@ -17,7 +17,6 @@ docker_logs() {
 
 failure() {
 	echo "Failed at line $1: $2"
-	docker_logs ${docker_id}
 }
 
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
