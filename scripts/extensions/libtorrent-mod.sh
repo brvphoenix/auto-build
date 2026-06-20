@@ -39,10 +39,11 @@ cd ..
 mv "${build_dir}" "${_pkg_name}-${_pkg_ver}"
 build_dir=${_pkg_name}-${_pkg_ver}
 
-tar --numeric-owner --owner=0 --group=0 --mode=a-s --sort=name \
-	${_timestamp:+--mtime="$_timestamp"} -c ${build_dir} | xz -zc -7e > ${build_dir}.tar.xz
+#tar --numeric-owner --owner=0 --group=0 --mode=a-s --sort=name \
+#	${_timestamp:+--mtime="$_timestamp"} -c ${build_dir} | zstd -T0 --ultra -20 -c > ${build_dir}.tar.zst
 rm -rf ${build_dir}
-_pkg_mirror_hash=$(sha256sum ${build_dir}.tar.xz | head -c 64)
+#_pkg_mirror_hash=$(sha256sum ${build_dir}.tar.zst | head -c 64)
+_pkg_mirror_hash=skip
 cd ..
 
 # patch the Makefile
