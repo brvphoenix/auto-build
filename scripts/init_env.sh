@@ -37,7 +37,7 @@ generate_variant() {
 
 	if [ -z "$(eval echo \${USE_${name_upper}_FILE})" -o -z "$(eval echo \${USE_${name_upper}_REVISION})" ]; then
 		grep -i "${pattern}" ${version}.sha256sums > "${name}.sha256sums"
-		fname=$(grep -io "${pattern}" "${name}.sha256sums")
+		fname=$(grep -io "${pattern}" "${name}.sha256sums" | tail -1)
 		rev_info=$(grep -ioE "^\w+" "${name}.sha256sums" | head -c 10)
 		echo "USE_${name_upper}_FILE=${fname}" >> $GITHUB_ENV
 		echo "USE_${name_upper}_REVISION=${rev_info}" >> $GITHUB_ENV
@@ -56,7 +56,7 @@ if [ "${RUNTIME_TEST}" = "true" ]; then
 		imagebuilder_pattern="openwrt-imagebuilder-.*.Linux-x86_64.tar.*"
 		generate_variant "imagebuilder" "${USE_ROOTFS_VERSION}" "${USE_ROOTFS_KEYRING}" "${imagebuilder_pattern}"
 	else
-		rootfs_pattern="openwrt-.*${CUR_TARGET_NAME}-.*rootfs.tar.gz"
+		rootfs_pattern="openwrt-.*${CUR_TARGET_NAME}-.*rootfs.tar.*"
 		generate_variant "rootfs" "${USE_ROOTFS_VERSION}" "${USE_ROOTFS_KEYRING}" "${rootfs_pattern}"
 	fi
 	echo "USE_IMAGEBUILDER=${USE_IMAGEBUILDER}" >> $GITHUB_ENV

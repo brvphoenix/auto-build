@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eET -o pipefail
 . ${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/scripts/build_default.sh
-target_dir=${1:-feeds/base/package/libs/openssl}
+target_dir=${1:-feeds/base/libs/openssl}
 
 if [ -n "$1" ]; then
 	target_dir=$1
@@ -9,8 +9,8 @@ elif [ -f "${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/rsync/${CUR_LINK_TYPE}/openssl/M
 	target_dir=${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/rsync/${CUR_LINK_TYPE}/openssl
 elif [ -f "${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/rsync/common/openssl/Makefile" ]; then
 	target_dir=${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/rsync/common/openssl
-elif [ -f "feeds/base/package/libs/openssl/Makefile" ]; then
-	target_dir=feeds/base/package/libs/openssl
+elif [ -f "feeds/base/libs/openssl/Makefile" ]; then
+	target_dir=feeds/base/libs/openssl
 else
 	echo "::error ::${target_dir}/Makefile doesn't not exist.";
 	exit 1

@@ -8,8 +8,8 @@ elif [ -f "${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/rsync/${CUR_LINK_TYPE}/pcre2/Mak
 	target_dir=${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/rsync/${CUR_LINK_TYPE}/pcre2
 elif [ -f "${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/rsync/common/pcre2/Makefile" ]; then
 	target_dir=${GITHUB_WORKSPACE}/${CUR_REPO_NAME}/rsync/common/pcre2
-elif [ -f "feeds/base/package/libs/pcre2/Makefile" ]; then
-	target_dir=feeds/base/package/libs/pcre2
+elif [ -f "feeds/base/libs/pcre2/Makefile" ]; then
+	target_dir=feeds/base/libs/pcre2
 else
 	echo "::error ::${target_dir}/Makefile doesn't not exist.";
 	exit 1
