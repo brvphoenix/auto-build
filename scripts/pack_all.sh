@@ -16,8 +16,6 @@ KEY_DIR=${SAVE_ROOT_DIR}/key
 PKG_EXT=$([ "${CUR_LINK_TYPE}" = "static" ] && echo apk || echo ipk)
 PKG_ARCH=$(perl ${SCRIPT_DIR}/dump-target-info.pl targets 2>/dev/null | grep "^${CUR_TARGET_NAME//-/\/}\b" | cut -d ' ' -f 2)
 
-grep -n USE_APK ${TOPDIR}/.config
-
 BUILD_KEY_OPKG_NAME=qbt-key
 BUILD_KEY_APK_SEC=${TOPDIR}/qbt-private-key.pem
 BUILD_KEY_APK_PUB=${TOPDIR}/qbt-public-key.pem
