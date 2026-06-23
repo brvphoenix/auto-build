@@ -83,9 +83,10 @@ if [ -n "$(docker ps -f id=${docker_id} -f status=running -q)" ]; then
 		curl -s -m 10 -H "Host: ${webui_url}" --cookie "${sid_name}=${sid}" ${req_url}/api/v2/log/main?last_known_id=-1 | jq -r '.[] | "\(.timestamp | todate) \(.message)"'
 		echo "::endgroup::"
 		curl -s -m 10 -X POST -H "Host: ${webui_url}" --cookie "${sid_name}=${sid}" ${req_url}/api/v2/app/shutdown
-		end_time=$(($(date +%s) + 100))
+		end_time=$(($(date +%s) + 300))
 		while [ "${end_time}" -gt "$(date +%s)" ]; do
 			[ -n "$(docker ps -f id=${docker_id} -f status=running -q)" ] && sleep 1 || { err_code=0; break; }
+			curl -s -m 10 -X POST -H "Host: ${webui_url}" --cookie "${sid_name}=${sid}" ${req_url}/api/v2/app/shutdown
 		done
 	else
 		echo "::error::Can't connect to qbittorrent!!!"
