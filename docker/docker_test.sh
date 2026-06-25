@@ -86,6 +86,9 @@ if [ -n "$(docker ps -f id=${docker_id} -f status=running -q)" ]; then
 		end_time=$(($(date +%s) + 100))
 		while [ "${end_time}" -gt "$(date +%s)" ]; do
 			[ -n "$(docker ps -f id=${docker_id} -f status=running -q)" ] && sleep 1 || { err_code=0; break; }
+			echo "::group::Process list"
+	        docker exec ${docker_id} sh -c 'top -b -n 1'
+	        echo "::endgroup::"
 		done
 	else
 		echo "::error::Can't connect to qbittorrent!!!"
