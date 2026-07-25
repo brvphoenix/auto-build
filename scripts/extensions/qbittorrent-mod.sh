@@ -29,7 +29,7 @@ mkdir -p ${patch_dir}
 PKG_REF=release-$(sed --follow-symlinks -n 's/PKG_VERSION:=\(\w\+\)/\1/gp' ${target_dir}/Makefile)
 
 # Hotfixes
-# curl -kLZ --compressed -o ${patch_dir}/0001.patch https://github.com/brvphoenix/qBittorrent/compare/${PKG_REF}...stable_backup.patch
+curl -kLZ --compressed -o ${patch_dir}/0001.patch https://github.com/brvphoenix/qBittorrent/compare/${PKG_REF}...stable_backup.patch
 
 # # Log view
 # curl -kLZ --compressed -o ${patch_dir}/0003.patch https://patch-diff.githubusercontent.com/raw/qbittorrent/qBittorrent/pull/18290.patch
