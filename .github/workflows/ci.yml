@@ -394,7 +394,7 @@ jobs:
 
     - run: npm i @actions/artifact@^5
 
-    - uses: actions/github-script@v8
+    - uses: actions/github-script@v9
       with:
         script: |
           const { DefaultArtifactClient } = require('@actions/artifact');
