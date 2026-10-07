@@ -397,7 +397,7 @@ jobs:
     - uses: actions/github-script@v9
       with:
         script: |
-          const { DefaultArtifactClient } = require('@actions/artifact');
+          import {DefaultArtifactClient} from '@actions/artifact'
           const artifactClient = new DefaultArtifactClient();
 
           const paginationCount = 100;
